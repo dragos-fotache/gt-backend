@@ -16,7 +16,9 @@ import java.io.IOException;
 public class AuthNoStoreFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith(request.getContextPath() + "/v1/auth/");
+        String uri = request.getRequestURI();
+        String context = request.getContextPath();
+        return !(uri.startsWith(context + "/v1/auth/") || uri.startsWith(context + "/v1/account/"));
     }
 
     @Override

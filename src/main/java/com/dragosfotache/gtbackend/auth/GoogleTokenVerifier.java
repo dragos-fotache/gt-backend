@@ -30,26 +30,43 @@ public class GoogleTokenVerifier {
     public Verified verify(String token, String expectedNonce) {
         if (audience == null || audience.isBlank())
             throw new IllegalStateException("Google verification is not configured");
+        final GoogleIdToken parsed;
+        try {
+            parsed = GoogleIdToken.parse(GsonFactory.getDefaultInstance(), token);
+        } catch (IOException | IllegalArgumentException e) {
+            throw new InvalidGoogleToken();
+        }
+        final boolean signatureOk;
         try {
             GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), GsonFactory.getDefaultInstance())
                     .setPublicCertsEncodedUrl(certificatesUrl).setAudience(List.of(audience)).build();
-            GoogleIdToken parsed = verifier.verify(token);
-            if (parsed == null) throw new InvalidGoogleToken();
-            GoogleIdToken.Payload p = parsed.getPayload();
-            String issuer = p.getIssuer();
-            if (!("accounts.google.com".equals(issuer) || "https://accounts.google.com".equals(issuer)) ||
-                    p.getExpirationTimeSeconds() == null || p.getExpirationTimeSeconds() * 1000L <= System.currentTimeMillis() ||
-                    !expectedNonce.equals(p.get("nonce")) || p.getSubject() == null || p.getSubject().isBlank())
-                throw new InvalidGoogleToken();
-            return new Verified(p.getSubject(), p.get("name") instanceof String n ? n : null);
-        } catch (IOException | GeneralSecurityException e) {
+            signatureOk = verifier.verify(parsed);
+        } catch (IOException e) {
+            throw new ProviderUnavailable();
+        } catch (GeneralSecurityException e) {
             throw new InvalidGoogleToken();
         }
+        if (!signatureOk) throw new InvalidGoogleToken();
+        GoogleIdToken.Payload p = parsed.getPayload();
+        String issuer = p.getIssuer();
+        if (!("accounts.google.com".equals(issuer) || "https://accounts.google.com".equals(issuer)) ||
+                p.getExpirationTimeSeconds() == null || p.getExpirationTimeSeconds() * 1000L <= System.currentTimeMillis() ||
+                !expectedNonce.equals(p.get("nonce")) || p.getSubject() == null || p.getSubject().isBlank())
+            throw new InvalidGoogleToken();
+        return new Verified(p.getSubject(), p.get("name") instanceof String n ? n : null);
     }
 
     public record Verified(String subject, String displayName) {
     }
 
     public static final class InvalidGoogleToken extends RuntimeException {
+    }
+
+    /**
+     * Cause-free marker for provider key-fetch transport failure. Lifecycle proof
+     * maps it to a retryable unavailable response; the signup exchange keeps its
+     * accepted rejection behavior unchanged.
+     */
+    public static final class ProviderUnavailable extends RuntimeException {
     }
 }

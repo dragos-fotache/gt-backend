@@ -58,6 +58,24 @@ class GoogleTokenVerifierTest {
         }
     }
 
+    @Test
+    void malformedTokenShapesFailClosedAsInvalidCredentials() {
+        // Unroutable certificates endpoint: these shapes must fail in JWT parsing before
+        // any provider certificate fetch is attempted.
+        var verifier = new GoogleTokenVerifier("server-client-id", "http://127.0.0.1:1/unused-certs");
+        assertThrows(GoogleTokenVerifier.InvalidGoogleToken.class, () -> verifier.verify("not-a-jwt", "expected-nonce"));
+        assertThrows(GoogleTokenVerifier.InvalidGoogleToken.class, () -> verifier.verify("a.b", "expected-nonce"));
+        assertThrows(GoogleTokenVerifier.InvalidGoogleToken.class, () -> verifier.verify("a.b.c.d", "expected-nonce"));
+        assertThrows(GoogleTokenVerifier.InvalidGoogleToken.class, () -> verifier.verify("!!!.e30.e30", "expected-nonce"));
+        assertThrows(GoogleTokenVerifier.InvalidGoogleToken.class, () -> verifier.verify("e30.!!!.e30", "expected-nonce"));
+        assertThrows(GoogleTokenVerifier.InvalidGoogleToken.class, () -> verifier.verify("e30.e30.!!!", "expected-nonce"));
+        String notJson = Base64.getUrlEncoder().withoutPadding().encodeToString("not-json".getBytes(StandardCharsets.UTF_8));
+        assertThrows(GoogleTokenVerifier.InvalidGoogleToken.class,
+                () -> verifier.verify(notJson + ".e30.e30", "expected-nonce"));
+        assertThrows(GoogleTokenVerifier.InvalidGoogleToken.class,
+                () -> verifier.verify("e30." + notJson + ".e30", "expected-nonce"));
+    }
+
     private String jwt(java.security.PrivateKey key, String issuer, String audience, String nonce) throws Exception {
         return jwt(key, issuer, audience, nonce, Instant.now().plusSeconds(120).getEpochSecond());
     }

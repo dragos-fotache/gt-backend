@@ -18,7 +18,7 @@ The accepted 8c baseline records the shared repository revision and exact verifi
 reproduce those inputs. From this backend root, verify them with `sha256sum -c docs/shared-docs-inputs.sha256`.
 Review and commit shared-docs changes separately; never include that checkout in a backend commit.
 
-Never edit already-applied Flyway V1–V5; use forward-only new migrations for schema changes (V5 adds sync replay
+Treat accepted Flyway V1–V7 as immutable; use forward-only new migrations for schema changes (V5 adds sync replay
 storage). Never commit secrets, database credentials or raw Google tokens. Do not stage or commit work without explicit
 approval.
 
@@ -55,7 +55,7 @@ sanitized error bodies. Do not log request bodies or credentials.
 
 Run `./mvnw test` from this project root with Docker available. Integration tests use isolated Testcontainers PostgreSQL
 16, real HTTP for the implemented routes, and mocks only for external Google behavior; they do **not** connect to the
-configured local `gymtracka` database. Testcontainers may download images on first run. Latest bounded 8b independent QA passed 167 targeted / 188 full tests (12 / 15 suites), with zero failures/errors/skips; Coordinator passed eight HTTP/PostgreSQL spots on the same frozen inputs. See `docs/task-8b-acceptance.md` and `docs/task-8b-qa.md`. Historical final post-cleanup task-6
+configured local `gymtracka` database. Testcontainers may download images on first run. Latest bounded 9a independent QA passed **227 integrated / 248 full tests** (22 / 25 suites), with zero failures/errors/skips; Coordinator passed **eleven HTTP/PostgreSQL spots across five suites** and the structural gate on identical frozen inputs. See `docs/task-9a-acceptance.md` and `docs/task-9a-qa.md` for exact evidence and limits. Historical final post-cleanup task-6
 independent QA targeted checks passed 116 tests; full `./mvnw -q test` passed 137 tests across 8 suites, with 0
 failures/errors/skips. Coordinator independently passed five risk-based HTTP/PostgreSQL spot checks on the identical
 frozen inputs. See `docs/task-6-acceptance.md` and `docs/task-6-qa.md` for exact commands, hashes, fresh artifacts,
@@ -168,12 +168,19 @@ passed eleven HTTP/PostgreSQL spots and the structural gate on identical frozen 
 `SYNC_SNAPSHOT_CLEANUP_*` scheduler properties add only snapshot storage and cleanup; defaults are enabled with 60-second
 delays and a 100-header work budget. No production cleanup-latency SLA is claimed.
 
-The agreed three-slice Task 8 sequence is now accepted within its bounded scope. Worker and QA are idle awaiting assignment.
-Tasks 9 and 10 remain unauthorized. This is not complete-v1 or deployment acceptance. Current checkpoint:
-`docs/coordinator-handoff.md`.
+The agreed three-slice Task 8 sequence remains accepted within its bounded scope. **9a is now accepted** for
+purpose-bound non-signup fresh Google proof and `POST /v1/account/export`: one consistent direct JSON attachment,
+durable admitted-proof consumption and independent live cancellation. No server export artifact, replay, credential
+extension or domain change is created. Acceptance and limits: `docs/task-9a-acceptance.md`; review: `docs/task-9a-review.md`.
+This is not complete Task 9, complete-v1 or deployment acceptance. Current checkpoint: `docs/coordinator-handoff.md`.
 
-The remaining agreed sequence is: (8c) 24-hour frozen sync snapshots;
-(9) fresh-Google-proof export, account status/deletion, durable minimal deletion
-evidence and live-data purge; (10) full API/DB acceptance, privacy-safe logs, backup/restore and deployment/HTTPS/OAuth
-release verification. Each area needs real API/PostgreSQL tests; do not infer completion solely from a passing suite or
-from this roadmap.
+Task 9 retains three bounded slices: **9a proofs/export (accepted)**, **9b deletion/status**, and **9c physical purge,
+re-signup isolation and integrated verification**. Plans are in `docs/task-9-contract.md` and the individual slice
+contracts. The original planning handoff is `docs/task-9-coordinator-handoff.md`; its current update points to acceptance.
+**9b/9c remain unauthorized.** Do not enable ordinary deletion before verified purge readiness or relax the separate
+24-hour purge deadline. Source/tests/documentation remain uncommitted; no further commit or deployment is authorized.
+The approved Worker/QA pair uses **Muse Spark 1.3 Contributor Medium** in Pi (`meta/muse-spark-1.3-contributor`,
+`medium` reasoning), idle awaiting explicit assignment. Future replacement requires separate authorization.
+
+Task 10 remains full API/DB acceptance, privacy-safe logs, backup/restore and deployment/HTTPS/OAuth release verification.
+Each area needs real API/PostgreSQL tests; do not infer completion solely from a passing suite or this roadmap.
