@@ -1,0 +1,9 @@
+target/
+.idea/
+*.iml
+.env
+.env.*
+*.env
+
+# Independent checkout; never add it as a backend submodule.
+/shared-docs/

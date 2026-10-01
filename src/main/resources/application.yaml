@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/gymtracka}
+    username: ${DB_USER:gym_user}
+    password: ${DB_PASSWORD:}
+  flyway:
+    enabled: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+auth:
+  google-audience: ${GOOGLE_OAUTH_AUDIENCE:}
+  encryption-key: ${AUTH_ENCRYPTION_KEY:}
+  cleanup:
+    fixed-delay-ms: ${AUTH_CLEANUP_FIXED_DELAY_MS:60000}
+    initial-delay-ms: ${AUTH_CLEANUP_INITIAL_DELAY_MS:60000}
+sync:
+  history:
+    cleanup:
+      enabled: ${SYNC_HISTORY_CLEANUP_ENABLED:true}
+      fixed-delay-ms: ${SYNC_HISTORY_CLEANUP_FIXED_DELAY_MS:60000}
+      initial-delay-ms: ${SYNC_HISTORY_CLEANUP_INITIAL_DELAY_MS:60000}
+  snapshot:
+    cleanup:
+      enabled: ${SYNC_SNAPSHOT_CLEANUP_ENABLED:true}
+      fixed-delay-ms: ${SYNC_SNAPSHOT_CLEANUP_FIXED_DELAY_MS:60000}
+      initial-delay-ms: ${SYNC_SNAPSHOT_CLEANUP_INITIAL_DELAY_MS:60000}

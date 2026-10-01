@@ -1,0 +1,33 @@
+# Shared inputs verified for accepted Task 8c.
+# Independent repository HEAD: 3aefeb3e2eaa147793d595833217d6070eeabff2
+# Supplied working-tree changes are preserved; HEAD alone does not reproduce these contents.
+# These hashes record dependencies, not a backend submodule or a shared-docs commit.
+# From the backend root: sha256sum -c docs/shared-docs-inputs.sha256
+# Source verification manifest: 440efc494f7fffda03e74c6ef304fc27052a78d81a910e50bb0001974817a148
+53d12fe5a0f08e77b8c46dba415b517e8d92fef4e51fce9f1c922a62f8ba633c  shared-docs/catalogue/README.md
+44ff0c8ce1b64f49e7d34b0784399760332318c09ccf2df2ccb490255e7f4c71  shared-docs/catalogue/test_verify.py
+0bb60c40e078ad73210793c11aaed80c2f8dd6a9316b0d67ba724519d84f6ef0  shared-docs/catalogue/v1/en/equipment.json
+1a9f8edf72a6780ed2d0404a2792f0848b568a51634d2a03ab1408d4c27210d5  shared-docs/catalogue/v1/en/exercises.json
+b4a7c50798714ef7ccef91f6190d828073e96ed8e61abffe1db9e3500f2fd54e  shared-docs/catalogue/v1/en/muscle_groups.json
+ae3913268c9b540feaebb823792c2a51d10f0bf797d64ddeb04a9e880aae4f4d  shared-docs/catalogue/v1/.gitattributes
+497dedffb4292e2b74e250f159ad8d70136564d6ccf13be604642350d34538e0  shared-docs/catalogue/v1/licenses/kinetic-place-MIT.txt
+6b0382b16279f26ff69014300541967a356a666eb0b91b422f6862f6b7dad17e  shared-docs/catalogue/v1/licenses/wrkout-Unlicense.txt
+d7e9f5da4035e243c4182ae7d0ec34b05231566d34198fd74eddbaffd459430f  shared-docs/catalogue/v1/manifest.json
+6e2c2c2789c0c88b44d48c295a11517cec37f1656f7c36afe7bbed1f8923cd42  shared-docs/catalogue/verify.py
+03cb1061c606abd1ed150e49941de0becb7797aa832f7160b2b114fbf3b9d4e0  shared-docs/docs/backend-contract/acceptance-scenarios.md
+b6410f9b5e511a6a75a211c0713c666b7d5fd9dbcaf19f81b27e73b133813c6d  shared-docs/docs/backend-contract/account-lifecycle.md
+9a4953e03b76683e93f75e7dc6aa8c78860678e216abf7532ac15b6683bbb318  shared-docs/docs/backend-contract/android-client-protocol.md
+2e915a67514d6b56fac8561ef083defbb4358af0e6be38375de064f05c633244  shared-docs/docs/backend-contract/authentication.md
+0b150b6e52b97e81eae42b60396d348c8e9a24ac8ffcb0ff3ecf517dc667dafe  shared-docs/docs/backend-contract/client-compatibility.md
+6c23cf395d13282d1cd41ec5530973720ee19871d43a53d5858f386394448388  shared-docs/docs/backend-contract/domain-rules.md
+2500d2b12c97c2926875c2bfce28ebee3ee2e6b6b61266ff7cdd3182c7d79969  shared-docs/docs/backend-contract/fixtures/account-deletion-receipt.json
+0930d21638bd834fbf2b85cede7a00131eb03492e1e41cebe5d75d9f83d20e64  shared-docs/docs/backend-contract/fixtures/account-export.json
+595ad071c3097f56ac4fd508539ca6bdc7ef1b4fc795842b3668c8e4511f3afd  shared-docs/docs/backend-contract/fixtures/finished-workout.json
+356891f0c1c1d6449e23d0e5751efb83a8df0997c2400a91636623b0030f62cb  shared-docs/docs/backend-contract/openapi.yaml
+686656a0612032b143e0a856da6825c20d944c2feada08e97696a1ecb7b3046c  shared-docs/docs/backend-contract/open-decisions.md
+0be6a2018359fa4a5c5133a5222e40cbf9bfe8b5e20ef14885fff04659643b19  shared-docs/docs/backend-contract/README.md
+1f668c720bbc83fdb203e0d53685e6bb125b3965d67fc2840e52ba577877652b  shared-docs/docs/backend-contract/retention.md
+c689659930a921770bd519cb0db3859ebb52c05b98d1fb8d877ef1dc6379e525  shared-docs/docs/backend-contract/schema.md
+adcf1e24e2bc8ebeb6abd6b351efd57dfb4d22f9115b63dd1d7c241786c7f708  shared-docs/docs/backend-contract/service-protocol.md
+992aefe56f5957f92898b21412d01d1d129ce0f8fea2d76a1adfc58ac1294d16  shared-docs/docs/backend-contract/sync.md
+f9eb0420fa3a0665c58b649f644bb7458f14dcb7289626c302e00f3588974e4c  shared-docs/README.md
