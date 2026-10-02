@@ -1,5 +1,8 @@
 package com.dragosfotache.gtbackend.sync;
 
+import com.dragosfotache.gtbackend.persistence.DurableCopyHooks;
+import com.dragosfotache.gtbackend.persistence.NoOpDurableCopyHooks;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -14,9 +17,16 @@ import java.util.UUID;
 public class SyncCursorRegistry {
     private static final SecureRandom RANDOM = new SecureRandom();
     private final JdbcTemplate jdbc;
+    private final DurableCopyHooks hooks;
 
     public SyncCursorRegistry(JdbcTemplate jdbc) {
+        this(jdbc, new NoOpDurableCopyHooks());
+    }
+
+    @Autowired
+    public SyncCursorRegistry(JdbcTemplate jdbc, DurableCopyHooks hooks) {
         this.jdbc = jdbc;
+        this.hooks = hooks;
     }
 
     public OptionalLong resolve(UUID accountId, String token) {
@@ -36,6 +46,10 @@ public class SyncCursorRegistry {
                 (rs, row) -> rs.getString(1), accountId, boundary);
         if (!existing.isEmpty()) return existing.get(0);
 
+        hooks.beforeCursorFence(accountId);
+        requireLiveAccountForShare(accountId);
+        hooks.afterCursorFence(accountId);
+
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
@@ -44,6 +58,17 @@ public class SyncCursorRegistry {
                 (rs, row) -> rs.getString(1), token, accountId, boundary);
         if (!inserted.isEmpty()) return inserted.get(0);
         throw new ConcurrentRegistration();
+    }
+
+    /**
+     * Same-transaction durable-copy fence held to the caller commit. Acquired
+     * only before a new cursor insert, never on the existing-token path.
+     */
+    private void requireLiveAccountForShare(UUID accountId) {
+        Boolean live = jdbc.query("SELECT deleted_at IS NULL FROM accounts WHERE id=? FOR SHARE",
+                rs -> rs.next() ? rs.getBoolean(1) : null, accountId);
+        if (!Boolean.TRUE.equals(live))
+            throw new com.dragosfotache.gtbackend.auth.AuthService.AuthException(401, "authentication_required");
     }
 
     /** Signals a harmless registry conflict that needs a fresh transaction snapshot. */

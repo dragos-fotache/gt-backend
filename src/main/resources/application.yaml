@@ -14,6 +14,13 @@ auth:
   cleanup:
     fixed-delay-ms: ${AUTH_CLEANUP_FIXED_DELAY_MS:60000}
     initial-delay-ms: ${AUTH_CLEANUP_INITIAL_DELAY_MS:60000}
+account:
+  deletion:
+    # Independent versioned HMAC ring for deletion-ledger digests, as JSON
+    # {"activeVersion":"2","keys":{"1":"base64-32B",...}}. Absent by
+    # default; lifecycle delete/status then fail closed without breaking
+    # unrelated routes. No real secret value is stored here.
+    ledger-keys: ${ACCOUNT_DELETION_LEDGER_KEYS:}
 sync:
   history:
     cleanup:

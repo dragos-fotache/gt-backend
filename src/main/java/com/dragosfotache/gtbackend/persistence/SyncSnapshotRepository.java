@@ -2,6 +2,7 @@ package com.dragosfotache.gtbackend.persistence;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -13,9 +14,16 @@ import java.util.UUID;
 public class SyncSnapshotRepository {
     private final JdbcTemplate jdbc;
     private final ObjectMapper json = new ObjectMapper();
+    private final DurableCopyHooks hooks;
 
     public SyncSnapshotRepository(JdbcTemplate jdbc) {
+        this(jdbc, new NoOpDurableCopyHooks());
+    }
+
+    @Autowired
+    public SyncSnapshotRepository(JdbcTemplate jdbc, DurableCopyHooks hooks) {
         this.jdbc = jdbc;
+        this.hooks = hooks;
     }
 
     /** Reads a bounded keyset of root IDs in the contract's canonical UUID-string order. */
@@ -35,6 +43,9 @@ public class SyncSnapshotRepository {
 
     public void create(UUID accountId, UUID snapshotId, String baselineCursor, java.time.Instant createdAt,
                        java.time.Instant expiresAt) {
+        hooks.beforeSnapshotFence(accountId);
+        requireLiveAccountForShare(accountId);
+        hooks.afterSnapshotFence(accountId);
         jdbc.update("insert into sync_snapshots(account_id,snapshot_id,baseline_cursor,created_at,expires_at,record_count) "
                         + "values(?,?,?,?,?,0)", accountId, snapshotId, baselineCursor,
                 java.sql.Timestamp.from(createdAt), java.sql.Timestamp.from(expiresAt));
@@ -105,6 +116,18 @@ public class SyncSnapshotRepository {
         } catch (Exception e) {
             throw new CorruptSnapshot();
         }
+    }
+
+    /**
+     * Same-transaction durable-copy fence held to the caller commit. Invoked
+     * immediately before snapshot header insert, never at the start of the
+     * whole read.
+     */
+    private void requireLiveAccountForShare(UUID accountId) {
+        Boolean live = jdbc.query("SELECT deleted_at IS NULL FROM accounts WHERE id=? FOR SHARE",
+                rs -> rs.next() ? rs.getBoolean(1) : null, accountId);
+        if (!Boolean.TRUE.equals(live))
+            throw new com.dragosfotache.gtbackend.auth.AuthService.AuthException(401, "authentication_required");
     }
 
     public List<ExpiredSnapshot> lockExpired(java.time.Instant cutoff, int budget) {

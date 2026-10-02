@@ -16,12 +16,16 @@ public class AuthService {
     private final AuthCrypto crypto;
     private final GoogleTokenVerifier google;
     private final ObjectMapper mapper;
+    private final com.dragosfotache.gtbackend.account.DeletionSubjectFence subjectFence;
 
-    public AuthService(JdbcTemplate jdbc, AuthCrypto crypto, GoogleTokenVerifier google, ObjectMapper mapper) {
+    public AuthService(JdbcTemplate jdbc, AuthCrypto crypto, GoogleTokenVerifier google, ObjectMapper mapper,
+                       com.dragosfotache.gtbackend.account.DeletionSubjectFence subjectFence) {
+        if (subjectFence == null) throw new IllegalArgumentException("Deletion subject fence is required");
         this.jdbc = jdbc;
         this.crypto = crypto;
         this.google = google;
         this.mapper = mapper;
+        this.subjectFence = subjectFence;
     }
 
     @Transactional
@@ -53,6 +57,7 @@ public class AuthService {
             throw new AuthException(401, "invalid_google_credential");
         }
         jdbc.query("SELECT pg_advisory_xact_lock(hashtextextended(?,0))", rs -> null, verified.subject());
+        subjectFence.checkNewExchangeAllowed(verified.subject(), challengeCreatedAt(challengeId));
         UUID account = jdbc.query("SELECT account_id FROM google_identity_bindings WHERE google_subject=?", rs -> rs.next() ? rs.getObject(1, UUID.class) : null, verified.subject());
         if (account == null) {
             account = UUID.randomUUID();
@@ -188,7 +193,16 @@ public class AuthService {
     }
 
     private void lockSession(UUID id) {
-        jdbc.query("SELECT a.id FROM accounts a JOIN auth_sessions s ON s.account_id=a.id WHERE s.id=? FOR UPDATE OF a,s", rs -> null, id);
+        UUID account = jdbc.query("SELECT account_id FROM auth_sessions WHERE id=?",
+                rs -> rs.next() ? rs.getObject(1, UUID.class) : null, id);
+        if (account == null) return;
+        jdbc.query("SELECT 1 FROM accounts WHERE id=? FOR UPDATE", rs -> null, account);
+        jdbc.query("SELECT 1 FROM auth_sessions WHERE id=? FOR UPDATE", rs -> null, id);
+    }
+
+    private Instant challengeCreatedAt(UUID id) {
+        return jdbc.query("SELECT created_at FROM auth_challenges WHERE id=?",
+                rs -> rs.next() ? rs.getTimestamp(1).toInstant() : null, id);
     }
 
     private record Challenge(String nonce, String purpose, Instant expires, boolean consumed) {

@@ -174,13 +174,10 @@ durable admitted-proof consumption and independent live cancellation. No server 
 extension or domain change is created. Acceptance and limits: `docs/task-9a-acceptance.md`; review: `docs/task-9a-review.md`.
 This is not complete Task 9, complete-v1 or deployment acceptance. Current checkpoint: `docs/coordinator-handoff.md`.
 
-Task 9 retains three bounded slices: **9a proofs/export (accepted)**, **9b deletion/status**, and **9c physical purge,
+Task 9 retains three bounded slices: **9a proofs/export (accepted)**, **9b deletion/status (accepted)**, and **9c physical purge,
 re-signup isolation and integrated verification**. Plans are in `docs/task-9-contract.md` and the individual slice
 contracts. The original planning handoff is `docs/task-9-coordinator-handoff.md`; its current update points to acceptance.
-**9b/9c remain unauthorized.** Do not enable ordinary deletion before verified purge readiness or relax the separate
-24-hour purge deadline. Source/tests/documentation remain uncommitted; no further commit or deployment is authorized.
-The approved Worker/QA pair uses **Muse Spark 1.3 Contributor Medium** in Pi (`meta/muse-spark-1.3-contributor`,
-`medium` reasoning), idle awaiting explicit assignment. Future replacement requires separate authorization.
+**9b is accepted within its bounded scope**: atomic deletion acceptance, permanent minimal keyed evidence, exact receipt recovery, authenticated status and lifecycle fences. Independent verification passed **56 dedicated / 257 integrated / 304 full-suite tests**, Worker **106 tests**, and Coordinator structural and isolated HTTP/PostgreSQL spots on identical frozen inputs. Acceptance/evidence/limits: `docs/task-9b-acceptance.md`; findings: `docs/task-9b-review.md`. **All execution slots are closed; 9c remains unauthorized.** Ordinary purge readiness is unconditionally false; new deletion stays unavailable. A pending intent is not physical purge, and the separate 86,400-second deadline is unchanged. Supplied backend commit `af6e1f5` is preserved; 9b work remains uncommitted and no further commit or deployment is authorized. The existing Worker/QA pair holds pending explicit further authority. No model/settings change was made; future replacement requires separate authorization.
 
 Task 10 remains full API/DB acceptance, privacy-safe logs, backup/restore and deployment/HTTPS/OAuth release verification.
 Each area needs real API/PostgreSQL tests; do not infer completion solely from a passing suite or this roadmap.
