@@ -2,7 +2,19 @@
 
 ## Current status and next action
 
-### Task 9b accepted — await explicit 9c authority
+### Task 9c accepted (functional) — Task 9 complete within bounded scope
+
+**9c is accepted as functional purge, re-signup isolation and integrated lifecycle verification.** Acceptance: `docs/task-9c-acceptance.md`; Coordinator design: `docs/task-9c-design.md`; Worker facts/notes: `docs/task-9c-worker.md`; QA baseline/plan/results: `docs/task-9c-qa.md`. 9a and 9b remain accepted. This is not complete-v1, deployment, backup/restore, legal-compliance, Android, live Google/HTTPS or production-release acceptance. The shipped default stays fail-closed (`503`); opening deletion requires the verified config flag plus evidenced capacity/alerting per design section 11. `purgeBy=deletedAt+86400 seconds` is unchanged.
+
+All final gates independently pass on identical frozen inputs, manifest SHA-256 **`cd88c3beca88b6b3f06bb24189467327758b4b6db3ffc8ccdcf2c7221e6f2a1e`**: Worker self-check **136/26**, QA dedicated **21/7**, QA integrated **278/36**, QA full **325/41**, plus Coordinator structural review and HTTP/PostgreSQL spots (gate-off 503 with unconsumed proof, V9 SQL state machine, live scheduled sweep to complete). All exit 0 with zero failures/errors/skips; every final before/after manifest is byte-identical. Earlier QA baseline 304/34 at `a0e4379c` covers pre-authoring inputs. Failed self-checks 9c01/9c02 and the diag root are retained as honest failure evidence; no behavior or assertion was weakened.
+
+Final evidence roots `/tmp/gt-backend-task9c-qa-baseline-9c01/`, `/tmp/gt-backend-task9c-worker-selfcheck-9c0{1,2,3}/`, `/tmp/gt-backend-task9c-worker-diag-9c01/`, `/tmp/gt-backend-task9c-qa-dedicated-9c01/`, `/tmp/gt-backend-task9c-qa-final-integrated-01/`, `/tmp/gt-backend-task9c-qa-final-full-01/` and `/tmp/gt-backend-task9c-coordinator-spots-9c01/`. Durable copies of 9 roots / 796 byte-verified files: `/home/dragos/.local/state/gymtracka-backend/coordinator-checkpoints/task-9c-20261002T144847Z/`; listing in `evidence-index.txt`, verification in `checkpoint-files.sha256`. Prefer this checkpoint when temporary paths expire.
+
+**All Maven/child/spot/authoring slots CLOSED.** Worker `backend_worker` at `w4:pD` and QA `backend_qa` at `w4:pE` are fresh `meta/muse-spark-1.3-contributor` high agents holding with no authoring and no Maven; Coordinator `backend_coordinator` at `w4:p7`. Async Herdr reporting is the standing protocol. Backend HEAD `af6e1f5`, 9b/9c changes uncommitted; shared HEAD `0bd414b`, clean, 27 pins verified.
+
+Next: **await explicit user authorization** before Task 10, commit, deployment, agent replacement, or opening ordinary deletion in any environment. Historical sections below do not supersede this status.
+
+### Historical 9b acceptance — superseded by 9c acceptance above
 
 **9b is accepted within its bounded acceptance/status/minimal-evidence/lifecycle-fence scope.** Acceptance and full evidence: `docs/task-9b-acceptance.md`; authoritative findings/chronology: `docs/task-9b-review.md`. 9a remains accepted. This is not physical purge, Task9 completion, complete-v1 or deployment acceptance. Ordinary readiness remains unconditionally false; new deletion is503 without proof consumption. Existing receipt recovery/status remain supported; pending intent is not purge and `purgeBy=deletedAt+86400 seconds` is unchanged.
 

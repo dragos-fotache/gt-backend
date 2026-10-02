@@ -21,6 +21,15 @@ account:
     # default; lifecycle delete/status then fail closed without breaking
     # unrelated routes. No real secret value is stored here.
     ledger-keys: ${ACCOUNT_DELETION_LEDGER_KEYS:}
+    purge:
+      # Physical purge stays disabled by default; ordinary deletion remains
+      # fail-closed until the section 11 release conditions are verified and
+      # this flag is deliberately enabled. No production SLA is chosen here.
+      enabled: ${ACCOUNT_DELETION_PURGE_ENABLED:false}
+      fixed-delay-ms: ${ACCOUNT_DELETION_PURGE_FIXED_DELAY_MS:60000}
+      initial-delay-ms: ${ACCOUNT_DELETION_PURGE_INITIAL_DELAY_MS:60000}
+      account-budget: ${ACCOUNT_DELETION_PURGE_ACCOUNT_BUDGET:20}
+      row-budget: ${ACCOUNT_DELETION_PURGE_ROW_BUDGET:500}
 sync:
   history:
     cleanup:

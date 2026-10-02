@@ -384,3 +384,263 @@ text is asserted here.
 - No secrets, local database or `dev.env` accessed.
 - Awaiting next assignment; this survey is the recorded output for
   assignment 1 as amended.
+
+---
+
+## Implementation notes (assignment 2 — design sections 1–12, as specified)
+
+Implemented production exactly as specified in `docs/task-9c-design.md`
+sections 1–12. No test files, shared-docs, secrets or applied migrations
+touched. No surefire execution in this slot. Standing rule observed: only
+local implementation decisions (method shapes, phase labels, SQL text);
+no architecture decision taken locally.
+
+### Files changed (all under owned production scope)
+
+- `src/main/resources/db/migration/V9__purge_progress.sql` (new,
+  forward-only): drops and re-adds the intent state check as
+  `IN ('pending','in_progress','complete')`; adds `phase` (default
+  `'pending'`), `attempts` (default 0, `CHECK >= 0`), `updated_at`
+  (default `now()`), `completed_at` (NULL), `last_error` (NULL); adds
+  index `(state, purge_by)`. V1–V8 untouched. Existing test inserts use
+  explicit column lists, so new defaults are compatible.
+- `src/main/java/com/dragosfotache/gtbackend/account/AccountPurgeRepository.java`
+  (new): all purge SQL. Finite UUID-scoped bounded deletes (ctid-windowed,
+  `LIMIT`-style per-table caps) plus claim/complete transitions on the
+  intent row. Parent deletes that carry `RESTRICT` children
+  (batches/headers/tokens/sessions) delete only rows with no remaining
+  child, so phases never fault on the restriction. `verifyCounts` covers
+  every section-4 store; the ledger row is asserted present, never deleted.
+- `src/main/java/com/dragosfotache/gtbackend/account/AccountPurgeService.java`
+  (new): section-4 phase order (`sets`, `entries`, `roots`, `exercises`,
+  `reservations`, `sync_log`, `snapshots`, `replay`, `auth`, `binding`,
+  `account`), one `REQUIRES_NEW` transaction per phase, progress persisted
+  via `markPhase`, transient faults return the intent to `pending` with
+  `attempts + 1` and sanitized `503`/`500` mapping through
+  `LifecycleGoogle.isRetryablePersistenceFault`. Completion (`markComplete`
+  with `completed_at`) happens only in the same transaction as the
+  all-zero verification. `purge_by` is read, never written. Breach
+  (`completed_at > purge_by`) finishes removal but logs one fixed sanitized
+  warning and reports `breached=true`. Public entries: `purgeAccount(UUID)`
+  and `purgeNextBatch(accountBudget)`.
+- `src/main/java/com/dragosfotache/gtbackend/account/AccountPurgeScheduler.java`
+  (new): `@Scheduled` fixed-delay sweep behind
+  `@ConditionalOnProperty(prefix="account.deletion.purge", name="enabled",
+  havingValue="true", matchIfMissing=false)`; claims at most
+  `account-budget` intents ordered by `purge_by` via the repository claim,
+  one bounded pass per account, per-account faults recorded without
+  aborting the sweep, fixed sanitized scheduler log only.
+- `src/main/java/com/dragosfotache/gtbackend/account/ConfigBackedPurgeReadiness.java`
+  (new): production readiness bean active only when
+  `account.deletion.purge.enabled=true`; returns the flag.
+- `src/main/java/com/dragosfotache/gtbackend/account/AlwaysUnavailablePurgeReadiness.java`
+  (edit): now `@ConditionalOnProperty(... havingValue="false",
+  matchIfMissing=true)` so exactly one production readiness bean is active
+  at a time. Default (absent/false) still returns false: ordinary deletion
+  stays fail-closed. Test `@Primary` replacements are unaffected.
+- `src/main/resources/application.yaml` (edit): added
+  `account.deletion.purge` keys `enabled` (default false),
+  `fixed-delay-ms`/`initial-delay-ms` (default 60000),
+  `account-budget` (default 20), `row-budget` (default 500), each bound
+  from `ACCOUNT_DELETION_PURGE_*` env with the specified defaults. No
+  secret values.
+
+### Boundaries kept
+
+- Cohesive services, explicit outcomes (`AccountResult`/`SweepResult`,
+  `PurgeException` with status+code). No controller SQL, no broad refactor,
+  no request-body logging, no statement scoped by subject/credential key/
+  resource UUID. Purger never takes the provider-subject advisory lock.
+  Lock order per phase: account `FOR UPDATE`, then intent `FOR UPDATE`;
+  `SKIP LOCKED` only in the intent claim.
+- `auth_challenges` never deleted by purge (no account column; separate
+  five-minute/consumption cleanup), per section 4.
+
+### Verification in this slot
+
+- Compile-only Maven under the build lock, no surefire:
+  `flock /tmp/gt-backend-task7-build.lock ./mvnw -q -DskipTests package`
+  → exit 0 (only JVM/Jansi/Guice warnings). No tests run, no test files
+  edited, no local database or secrets touched.
+- Open questions: none remaining against sections 1–12 as written; any
+  future ambiguity will come back as an open question per the standing rule.
+
+---
+
+## Hardening fixes (assignment 3 — Coordinator structural review, no design latitude)
+
+Three production-only fixes, implemented exactly as stated. No test edits,
+no shared-docs edits, no new behavior beyond the three guards.
+
+- Fix 1, missing intent guard (`AccountPurgeService.purgeAccount` entry):
+  `lockIntent` null now throws `PurgeException(500, "internal_error")`
+  before any delete runs. A purge without an intent row never deletes.
+- Fix 2, disabled-anchor guard (new
+  `AccountPurgeRepository.readAccountDisabled`, called once at
+  `purgeAccount` entry after locking): row missing (null) proceeds as
+  before for crash resume; row present with `deleted_at` null throws
+  `PurgeException(500, "internal_error")` with no deletes. Never deletes
+  for a live account. The read locks the account row (`FOR UPDATE`) to the
+  caller commit.
+- Fix 3, no-cascade account delete
+  (`AccountPurgeRepository.deleteAccountRow`): added `AND NOT EXISTS
+  (SELECT 1 FROM sync_snapshots s WHERE s.account_id=accounts.id)`, so the
+  anchor delete affects zero rows while snapshot headers remain and the
+  pass ends as `PROGRESS` instead of cascading headers away. Snapshot
+  headers are still explicitly deleted in the `snapshots` phase first.
+- Logs unchanged: every purge log message remains a fixed sanitized string
+  with no identifier, deadline, SQL or payload.
+
+Verification in this slot: `flock /tmp/gt-backend-task7-build.lock ./mvnw
+-q -DskipTests package` → exit 0 (only JVM/Jansi/Guice warnings). No test
+execution, no test edits.
+
+---
+
+## Self-check window 9c01 (assignment 4 — exclusive Worker slot, CLOSED blocked)
+
+- Evidence root: `/tmp/gt-backend-task9c-worker-selfcheck-9c01/`.
+- Before-manifest (`manifest.py` method, script unmodified): 162 paths,
+  manifest SHA-256 `a534d2aaaa7543af3f7375374cd1b454f5c57296c70beafbabb680e40275dee3`.
+- Exact command (once, under the build lock):
+  `flock /tmp/gt-backend-task7-build.lock ./mvnw -q
+  '-Dtest=Account*Test,Auth*Test,Google*Test' test`.
+- UTC start `2026-10-02T13:57:30Z`, end `2026-10-02T14:00:23Z`, exit `1`.
+- Result: **136 tests / 26 suites, 4 failures, 16 errors, 0 skipped**
+  (fresh XML cross-check matches the Maven summary).
+- After-manifest: byte-identical to before (same SHA-256 above). No input
+  edits, no weakening, no fixes, no reruns. Stale pre-run surefire output
+  was moved aside to `stale-target-reports/` before the run; fresh XML is
+  in `fresh-reports/`.
+- Observed failure facts (production findings for Coordinator triage, no
+  local resolution):
+  - `AccountPurgeDeadlineSchedulingHttpIntegrationTest.scheduledPurgeOnEmptyBacklogIsSafeNoOp`
+    fails with `9c seam: production purge bean
+    com.dragosfotache.gtbackend.account.AccountPurgeService has no no-arg
+    scheduled purge method. Worker must provide it.` The QA suite expects a
+    no-arg purge entry on the service bean; the current production entry
+    points are `purgeAccount(UUID)` and `purgeNextBatch(int)` plus
+    `AccountPurgeScheduler.sweep()`.
+  - `unknownAccountPurgeIsSafeNoOp`, `repeatedPurgeIsIdempotentWithUnchangedReceipt`,
+    `scheduledPurgeAfterCompletionIsStableNoOp` and most recovery/isolation
+    cases error with `Purge internal_error` (sanitized 500). The unknown-account
+    case has no intent row, which the assignment-3 Fix 1 guard now rejects;
+    the suite expects a safe no-op there.
+  - `rejectedDeletionWritesNoLedgerRowAndLeavesAccountLive`: expected `<0>`
+    but was `<1>`.
+  - `gatedAcceptanceDeniesRacingWriterWithoutSideEffects` and
+    `purgeRemovesAllAccountBearingRowsAndKeepsLedgerAndCatalogue` fail on
+    route-level assertions (`validation_error` envelope; routine-create
+    response shape).
+  - `largerAccountDrainsWithinFiniteInvocations` errors on fixture setup:
+    `duplicate key value violates unique constraint
+    "workouts_one_live_active_per_account"` from a test `INSERT INTO
+    workouts ...` — a fixture-side fault independent of purge deletes.
+- Window closed on first failure per instructions; all evidence preserved.
+  Verdict: **blocked**, returned to Coordinator with evidence above.
+
+---
+
+## Diagnostic 9c01 + Change 1 + systematic-500 fix (assignment 5)
+
+- Evidence root: `/tmp/gt-backend-task9c-worker-diag-9c01/` with two
+  bracketed sub-windows (reproduce on unfixed inputs, verify on fixed
+  inputs), each with before/after manifests and fresh XML.
+- Reproduce (before1 == after1, SHA-256 `a534d2aa...`, 162 paths):
+  `AccountPurgeNewAccountIsolationHttpIntegrationTest` alone →
+  3 tests, 0 failures, 3 errors, all `Purge internal_error`, UTC
+  2026-10-02T14:06:08Z–14:06:20Z, exit 1.
+- Root cause (code reading, confirmed by the verify run): direct
+  `purgeAccount` calls never moved the intent from `pending` to
+  `in_progress` (only the scheduler claim path did), so `markComplete`
+  — guarded by `WHERE state='in_progress'` — updated zero rows and threw
+  `IllegalStateException("Purge intent completion failed")`, mapped to the
+  sanitized 500. Every phase's deletes had already succeeded; only
+  completion failed. No temporary cause-revealing output was needed, so
+  none was added and none had to be removed.
+- Change 1 (Coordinator decision, implemented exactly): new no-arg
+  `AccountPurgeService.purgeDue()` running `purgeNextBatch` with the
+  configured `account.deletion.purge.account-budget`; the service now
+  injects that budget itself. `AccountPurgeScheduler.sweep()` calls
+  `purger.purgeDue()`, so the scheduled path and the test seam exercise
+  the same entry. Fix 1 kept exactly: no-intent purge still throws
+  `PurgeException(500, "internal_error")` with no deletes.
+- Systematic-500 fix (narrow, no broad refactor, no test edits): new
+  `AccountPurgeRepository.beginProgress` (`pending`→`in_progress`,
+  mirroring the claim transition) called once at `purgeAccount` entry for
+  pending intents. `markComplete` semantics unchanged.
+- Files changed: `AccountPurgeService.java` (purgeDue, account-budget
+  injection, beginProgress call), `AccountPurgeRepository.java`
+  (beginProgress), `AccountPurgeScheduler.java` (calls purgeDue).
+- Verify (before2 == after2, SHA-256 `ce79642e...`, 162 paths): same suite
+  → 3 tests, 1 failure, 0 errors, UTC 2026-10-02T14:07:13Z–14:07:25Z.
+  Both other tests green; the systematic 500 is gone.
+- Remaining failure (QA-side finding for Coordinator, not a production
+  fault): `delayedPurgeKeepsBRichStateIntactAndFencesOldCredentials:218`
+  expects `count(auth_sessions for B) == 1`, but the fixture creates two
+  B sessions itself (`signup` exchange session plus synthetic `bearerFor`
+  insert). Purge preserved B byte-intact (B-keeps-exercise, B-writes-after,
+  old-bearer-fenced assertions all passed its earlier lines); making this
+  pass from production would mean deleting B's legitimate session, which
+  would violate B-isolation. No test edits made; QA realignment is a
+  Coordinator decision. Known separate conflict stands: Fix 1 (no-intent
+  purge is 500) vs `unknownAccountPurgeIsSafeNoOp` expecting a no-op.
+- Full self-check not run, per instructions.
+
+---
+
+## Self-check rerun window 9c02 (assignment 6 — exclusive Worker slot, CLOSED blocked)
+
+- Evidence root: `/tmp/gt-backend-task9c-worker-selfcheck-9c02/`.
+- Before-manifest == after-manifest, 162 paths, manifest SHA-256
+  `9fc94baa044d5e703b23730162997da513c16f7288146f78b8eb0104ff37aa2d`
+  (new hash vs 9c01/diag because QA realigned several suites since; Worker
+  inputs untouched in this window).
+- Exact command (once, under the build lock):
+  `flock /tmp/gt-backend-task7-build.lock ./mvnw -q
+  '-Dtest=Account*Test,Auth*Test,Google*Test' test`.
+- UTC start `2026-10-02T14:09:28Z`, end `2026-10-02T14:12:19Z`, exit `1`.
+- Result: **136 tests / 26 suites, 3 failures, 0 errors, 0 skipped**
+  (fresh XML cross-check matches). Down from 4 failures + 16 errors in
+  9c01: every `Purge internal_error` is gone, including all recovery,
+  isolation, deadline, replay and race suites.
+- The 3 remaining failures (no production purge error in any of them):
+  1. `unknownAccountPurgeFailsClosedWithoutDeletes:130 expected <0> but
+     was <2>` — the realigned fail-closed oracle holds (500 with no
+     deletes), but its unscoped global `count(*) FROM
+     account_deletion_ledger` sees the two ledger rows left by the other
+     methods in the same shared-DB class. QA isolation finding.
+  2. `rejectedDeletionWritesNoLedgerRowAndLeavesAccountLive:203 expected
+     <0> but was <1>` — same shape: unscoped global ledger/intent count
+     observing another method's accepted-deletion row on the shared class
+     database. QA isolation finding.
+  3. `purgeRemovesAllAccountBearingRowsAndKeepsLedgerAndCatalogue:188
+     expected <200> but was <422>` — the workout-children PUT fixture
+     sends string-typed `"repetitions":"5"`, `"weightKg":"20"`,
+     `"restSeconds":"60"` where the strict API requires numbers, so setup
+     itself is rejected before purge runs. QA fixture finding.
+- No input edits, no fixes, no reruns in this window. Stale pre-run
+  surefire output moved aside to `stale-target-reports/`; fresh XML in
+  `fresh-reports/`. Verdict: **blocked** on the three QA-side findings
+  above; production purge calls succeed in every suite.
+
+---
+
+## Self-check rerun window 9c03 (assignment 7 — exclusive Worker slot, CLOSED green)
+
+- Evidence root: `/tmp/gt-backend-task9c-worker-selfcheck-9c03/`.
+- Before-manifest == after-manifest, 162 paths, manifest SHA-256
+  `cd88c3beca88b6b3f06bb24189467327758b4b6db3ffc8ccdcf2c7221e6f2a1e`
+  (new hash vs 9c02: QA realigned the three 9c02 findings since; Worker
+  inputs untouched in this window).
+- Exact command (once, under the build lock):
+  `flock /tmp/gt-backend-task7-build.lock ./mvnw -q
+  '-Dtest=Account*Test,Auth*Test,Google*Test' test`.
+- UTC start `2026-10-02T14:15:30Z`, end `2026-10-02T14:18:33Z`, exit `0`.
+- Result: **136 tests / 26 suites, 0 failures, 0 errors, 0 skipped**
+  (fresh XML cross-check; the `-q` log carries no summary lines).
+  All three 9c02 QA-side findings verify as realigned on the Worker side
+  with no Worker change in this window.
+- No input edits, no fixes, no reruns. Stale pre-run surefire output moved
+  aside to `stale-target-reports/`; fresh XML in `fresh-reports/`.
+  Verdict: **green**.
