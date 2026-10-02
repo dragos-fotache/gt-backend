@@ -1,246 +1,58 @@
-# GymTracka backend — Coordinator checkpoint
-
-## Current status and next action
-
-### Task 9c accepted (functional) — Task 9 complete within bounded scope
-
-**9c is accepted as functional purge, re-signup isolation and integrated lifecycle verification.** Acceptance: `docs/task-9c-acceptance.md`; Coordinator design: `docs/task-9c-design.md`; Worker facts/notes: `docs/task-9c-worker.md`; QA baseline/plan/results: `docs/task-9c-qa.md`. 9a and 9b remain accepted. This is not complete-v1, deployment, backup/restore, legal-compliance, Android, live Google/HTTPS or production-release acceptance. The shipped default stays fail-closed (`503`); opening deletion requires the verified config flag plus evidenced capacity/alerting per design section 11. `purgeBy=deletedAt+86400 seconds` is unchanged.
-
-All final gates independently pass on identical frozen inputs, manifest SHA-256 **`cd88c3beca88b6b3f06bb24189467327758b4b6db3ffc8ccdcf2c7221e6f2a1e`**: Worker self-check **136/26**, QA dedicated **21/7**, QA integrated **278/36**, QA full **325/41**, plus Coordinator structural review and HTTP/PostgreSQL spots (gate-off 503 with unconsumed proof, V9 SQL state machine, live scheduled sweep to complete). All exit 0 with zero failures/errors/skips; every final before/after manifest is byte-identical. Earlier QA baseline 304/34 at `a0e4379c` covers pre-authoring inputs. Failed self-checks 9c01/9c02 and the diag root are retained as honest failure evidence; no behavior or assertion was weakened.
-
-Final evidence roots `/tmp/gt-backend-task9c-qa-baseline-9c01/`, `/tmp/gt-backend-task9c-worker-selfcheck-9c0{1,2,3}/`, `/tmp/gt-backend-task9c-worker-diag-9c01/`, `/tmp/gt-backend-task9c-qa-dedicated-9c01/`, `/tmp/gt-backend-task9c-qa-final-integrated-01/`, `/tmp/gt-backend-task9c-qa-final-full-01/` and `/tmp/gt-backend-task9c-coordinator-spots-9c01/`. Durable copies of 9 roots / 796 byte-verified files: `/home/dragos/.local/state/gymtracka-backend/coordinator-checkpoints/task-9c-20261002T144847Z/`; listing in `evidence-index.txt`, verification in `checkpoint-files.sha256`. Prefer this checkpoint when temporary paths expire.
-
-**All Maven/child/spot/authoring slots CLOSED.** Worker `backend_worker` at `w4:pD` and QA `backend_qa` at `w4:pE` are fresh `meta/muse-spark-1.3-contributor` high agents holding with no authoring and no Maven; Coordinator `backend_coordinator` at `w4:p7`. Async Herdr reporting is the standing protocol. Backend HEAD `af6e1f5`, 9b/9c changes uncommitted; shared HEAD `0bd414b`, clean, 27 pins verified.
-
-Next: **await explicit user authorization** before Task 10, commit, deployment, agent replacement, or opening ordinary deletion in any environment. Historical sections below do not supersede this status.
-
-### Historical 9b acceptance — superseded by 9c acceptance above
-
-**9b is accepted within its bounded acceptance/status/minimal-evidence/lifecycle-fence scope.** Acceptance and full evidence: `docs/task-9b-acceptance.md`; authoritative findings/chronology: `docs/task-9b-review.md`. 9a remains accepted. This is not physical purge, Task9 completion, complete-v1 or deployment acceptance. Ordinary readiness remains unconditionally false; new deletion is503 without proof consumption. Existing receipt recovery/status remain supported; pending intent is not purge and `purgeBy=deletedAt+86400 seconds` is unchanged.
-
-All final gates independently pass on **148 paths**, SHA-256 **`3342c617309fb62ca5380dac324e76ec274f131d846bb216133186e45317629c`**: dedicated **56/9**, Worker **106/17**, independent integrated **257/29**, independent full **304/34**, plus Coordinator structure/manual HTTP/PostgreSQL spots. All tests exit0/zero failures/errors/skips. Every final before/after/live manifest/full pre-run mirror matches. Coordinator active/deleted status subject-lock expiry is direct manual PID/advisory/blocker evidence, not an absent JUnit case. Main-only runtime preserves false readiness yet recovers byte-identical receipt after actual accepting-process stop and controlled old proof/credential expiry. Exact replay/fresh-refresh/sync overlap and no-renewal/bookkeeping oracles now pass; committed-before/existing-token/ledger-only cases remain labeled supplements. Truly uncertain commit acknowledgment remains source-not-fault-reproduced.
-
-Final source freeze `/tmp/gt-backend-task9b-final-freeze-vgjz8ZmR/`. Final evidence roots `/tmp/gt-backend-task9b-qa-split-02/`, `/tmp/gt-backend-task9b-worker-selfcheck-9b01/`, `/tmp/gt-backend-task9b-qa-final-integrated-01/`, `/tmp/gt-backend-task9b-qa-final-full-01/`, `/tmp/gt-backend-task9b-coordinator-spots02-MZy1mLnM/` and `/tmp/gt-backend-task9b-coordinator-replay-expiry-1n4ZhwhP/`. Durable copies of31 selected roots/5079 byte-verified files, failures/child logs and final mirrors: `/home/dragos/.local/state/gymtracka-backend/coordinator-checkpoints/task-9b-20261002T125557Z/`; mapping in `evidence-index.json`, verification in `checkpoint-files.sha256`, current metadata in `coordinator-records/`. Prefer this checkpoint when temporary paths expire.
-
-**All Maven/child/spot/authoring slots CLOSED.** Worker `w4:pD`, QA `w4:pE`, Coordinator `w4:p7` remain existing Muse Pi actors/backend cwd; rediscover before control and preserve layout/services. Hold all source/test/build/fixed/shared inputs. Backend supplied HEAD `af6e1f59a537112a2efe3585f8ddcb90c0e4885b`;9b changes uncommitted. Shared supplied HEAD `0bd414b6c1b819a26e2d5fca0bed6b6b5acf2cea`, clean/all27pins verified. V1–V7 untouched; forwardV8 only. No real secrets/localgymtrackaDB/dev.env, tool/model/settings, context/compaction, shared edit, commit or deployment change occurred. Coordinator spot01's invalid routine-create fixture and all QA failed versions are preserved honestly; no production behavior/assertion was weakened to obtain green.
-
-Next: **await explicit user authorization** before9c physical-purge design/authoring/execution or any Task10/commit/deploy/agent replacement. Read9c fixed plan and pinned schema/store inventory then obtain concrete design/verification gates; do not infer readiness, backup/restore/deadline compliance or live Google/HTTPS/mobile from9b. Historical sections below do not open slots or supersede this status.
-
-### Historical 9b execution journal — superseded by acceptance
-
-The user explicitly authorized starting **9b only** with the existing Worker/QA pair. `docs/task-9b-contract.md` is the fixed scope and `docs/task-9b-review.md` records current execution. The fresh 116-path baseline independently passed 248 tests/25 suites with zero failures/errors/skips; its slot is closed. Coordinator approved QA's amended requirement-first plan and Worker revision 2 + R3 corrected by the binding R4 decisions in `docs/task-9b-review.md`. Bounded disjoint production/test authoring is released, including approved V8/ring, explicit account/session/credential order and insertion-time durable-copy fences. Initial stable handoffs are now reviewed and final fault/status source clarifications are now independently confirmed and existing production is held. Latest QA source actually accepts through child A, asserts death and replays through new child B, but no case has run. The corrected fixture wiring is cleared for initial diagnostics; final mandatory concurrency coverage and all behavioral verification still gate acceptance. Coordinator approved and source-reviewed the minimal inert DurableCopyHooks read-side seam in the cursor/snapshot repositories. Worker's main-only compile passed independently and is closed; corrected actual-command metadata was checked without a rerun. QA's corrected 14-new-test-path handoff is now source-cleared for initial compile/dedicated diagnostics; final direct/sync writer, refresh and old grant replay race coverage still gates acceptance. Details and limits are in the review. The final section of `docs/task-9b-review.md` records exact scope and remaining test requirements. Narrow disjoint correction/completion authoring is released. Latest tested provisional inputs are 148 paths at `3342c617309fb62ca5380dac324e76ec274f131d846bb216133186e45317629c`, with actual complete matching pre-run snapshots; the original 3036f352 freeze is historical; the 148-path source-review snapshot `/tmp/gt-backend-task9b-final-fixture-review-A6SXLiAu/` at `069a774be1c79d12239e97a535a24617e5a28354d2176d6b4464e7ded03026e7` and earlier 136/141-path checkpoints are historical. Coordinator independently verified provisional **47 tests/9 suites**, exit 0 with no failures/errors/skips in dedicated-03, 2026-10-02 09:36:14–09:37:10 UTC; no final acceptance follows. Outward-byte assertions were removed, so that result is admitted/server-write-attempt cancellation coverage, not accepted emitted-byte evidence. Corrected per-run snapshots were not located; Coordinator's exact final matching post-run reconstruction is in `/tmp/gt-backend-task9b-coordinator-qa-evidence-review-UtrjQPOV/dedicated-03/`. QA acknowledged hash-only corrected captures and updated its execution report. Latest coverage additions now include real sync mutations and Clock-based status waiting without the earlier cycle. Strict parsing, pre-deletion prefix collection, current-refresh input and accepted replay submission are now present. HttpResponse.body() and exact deletion-first 401 are now corrected, and a new compile/dedicated diagnostic window is open below. Client-pending replay overlap still lacks direct evidence of that replay's specific backend blocking; QA may strengthen it between closed runs with fresh full snapshots. No final acceptance criterion is waived. Committed-before writer checks are sequential supplements, not overlapping writer-first evidence. QA has targeted test-only corrections; no new freeze opens. **QA-only independent integrated/full regression window is OPEN**, `/tmp/gt-backend-task9b-qa-final-regression-eu5VPEwk/`,148 same final3342c617 full matching snapshot. Integrated then full exact commands/stop conditions at end of `docs/task-9b-review.md`; no input edits, fixes or reruns. Worker/Coordinator have no Maven slot. The historical Worker-only same-input self-check slot was on final full freeze `/tmp/gt-backend-task9b-final-freeze-vgjz8ZmR/`,148hash3342c617. Command and exact limits are at the end of `docs/task-9b-review.md`; QA/Coordinator have no Maven slot and all executable inputs are held. The historical QA-only split-overlap compile/dedicated window was, `/tmp/gt-backend-task9b-qa-split-verification-78psA0nN/`,148 starting hash `192d9660983a57d12b4837b321b793e1f05a7c55b8f62a5ca64e4907325cd01d`, complete matching snapshot. Two separate named overlap structures source-pass. QA must add the missing claimed expiry and sync-bookkeeping comparisons before first execution and capture a full matching new version; no weakening or other Maven operation. The historical QA-only final-candidate compile/dedicated window was at `/tmp/gt-backend-task9b-qa-final-candidate-mN331fn0/`, actual 148-path starting hash `133b3ef1960184d8c2d04c9e0090e9f8f5fbfb009d3877a12f2bf1d05a2985a2`, complete matching pre-run snapshot; all 107 main inputs remain held. QA may correct only bounded no-row polling/fixture/compiler issues before a run or between preserved closed runs, with a complete new matching pre-run capture for every changed version; no weakening or production edit. Compile then dedicated selector only; no integrated/full/self-check/Coordinator slot. The prior corrected QA window is historical at `/tmp/gt-backend-task9b-qa-corrected-verification-NbNrAq6r/`, fresh 148-path manifest `86ffdc27959d2cb960e9d67dcccddd3050af7c319884a14c8b5ee1b6f201002f` with a complete matching pre-run snapshot; all 107 main inputs remain unchanged. Compile then dedicated selector under the same lock, preserve/close failures before test-only correction/retry with complete matching pre-run captures, never weaken assertions or edit inputs during runs. Production findings close the window and return to Coordinator. No integrated/full/self-check/Coordinator slot. The initial QA window is historical at `/tmp/gt-backend-task9b-qa-initial-verification-d6NIRNgt/`, 148-path manifest `3036f352c8f552527e289fde62c15956dc10333c7f386bae38da7d285b338514`, complete matching snapshot. Compile `flock /tmp/gt-backend-task7-build.lock ./mvnw -q -DskipTests test`, then dedicated `flock /tmp/gt-backend-task7-build.lock ./mvnw -q '-Dtest=AccountDeletion*Test,AccountStatusHttpIntegrationTest' test`. No input edits during runs; QA may preserve/close failed runs and correct only tests/fixtures between runs with new complete actual manifests/snapshots, never weaken criteria. Production findings close the window and return to Coordinator. Corrected dedicated-01 independently passed **53 tests/9 suites**, exit 0/no failures/errors/skips, 2026-10-02 10:44:35–10:45:36 UTC, with 148 before/after/live/snapshot hashes at 4c1841f1. This remains provisional, not acceptance. No integrated/full/Worker/Coordinator slot. Final dedicated-04 independently passed **54/9**, exit0/no failures/errors/skips, 11:36:15–11:37:12 UTC on hash5a76f62a with full matching pre-run snapshots. Exact original replay advisory/PID and nested fault cases now pass. There were three failed dedicated runs (-01/-02/-03), not two, preserved with complete matching snapshots. Diff shows BOTH sync mutation and eligible fresh-refresh overlaps were moved after acceptance; they are sequential supplements, not required overlap proof. Split-02 independently passed **56/9**,exit0/no failures/errors/skips,2026-10-02 12:06:15–12:07:17 UTC on148hash3342c617. Full before/after/live/pre-run mirrors match;107 main inputs unchanged. Split-01 one error was test batch-column owner_id→account_id only. All three separate accepted-replay/sync/fresh-refresh wait cases and typed fault cases pass. Passing original replay remains separate. Status subject-expiry JUnit is absent; provider/account/equality are direct and final post-lock freshness is source-reviewed. Coordinator will exercise subject expiry in later HTTP/PG spots, not claim absent directJUnit. Commit acknowledgment uncertainty remains source-not-reproduced. Old 47 XML in corrected-compile-01/fresh-reports is stale residual, not tests from that failed compile. Main-only compile at `/tmp/gt-backend-task9b-worker-main-compile-LEXp6zj9/` passed exit 0/BUILD SUCCESS, 07:45:08–07:45:11 UTC on 2026-10-02, with identical 107-path before/after/live/snapshot manifest `bbe067a663414b3bb67c937b87a96044bad5262d722e0bcb281a5be1fdbd16ec`. Actual command omitted planned -q; original command.txt, actual-command.txt, evidence-note.txt and timestamps.txt preserve the logging-only variance. No tests/package/startup ran. All production/test/build/fixed/shared inputs stay held on final148hash3342c617. Worker selfcheck CLOSED and independently verified106tests/17suites zero failures/errors/skips,exit0,UTC12:14:19–12:16:25 at `/tmp/gt-backend-task9b-worker-selfcheck-9b01/`; actual before/after/live/full pre-run mirror matches. QA alone has integrated/full once each sequentially; report-only updates permitted. Coordinator spots/final acceptance remain pending separate serialized gates. Todo2 authoring is completed; todo4 coverage/evidence assessment remains in progress, with todo3 acceptance blocked. Worker/Coordinator have no Maven slot; final coverage and all acceptance gates remain pending. Worker/Coordinator have no Maven slot; this is not final regression or acceptance. Complete corrected coverage, identical final inputs and separately authorized self-check/integrated/full/Coordinator windows must precede bounded acceptance. Ordinary deletion remains disabled without verified purge readiness; the separate 86,400-second physical deadline is unchanged. 9c, Task 10, commits, deployment, shared edits, agent replacement and context/compaction management remain unauthorized.
-
-Live discovery now finds idle Pi actors in Worker `w4:pD` and QA `w4:pE`; both were role/safety-briefed and instructed to wait before this new authority. Both displays show `meta/muse-spark-1.3-contributor` with **high** reasoning, differing from the historical Medium policy. No model/settings change was made. Backend HEAD is now supplied commit `af6e1f5` (`sync work`), incorporating the 9a work and plans; shared HEAD is now `0bd414b`, also `sync work`. Both checkouts were clean before this Coordinator's status updates. All 27 pinned shared input hashes still verify. Preserve the supplied commits; historical uncommitted/HEAD statements below describe earlier checkpoints. No new commit is authorized.
-
-### Historical startup team policy — live identities preserved
-
-The user authorized starting Worker and QA in the existing Herdr panes and changed their model policy to **Muse Spark 1.3 Contributor Medium**, running in Pi. Live discovery found both panes already at foreground zsh prompts; no prior agent needed stopping. Worker `backend_worker` is now at `w4:pD` (session name `gt-backend-worker-muse`), and QA `backend_qa` is at `w4:pE` (session name `gt-backend-qa-muse`), both using `meta/muse-spark-1.3-contributor` with `medium` reasoning. Both read the README and Task 9 handoff, confirmed their roles/settings and are idle awaiting assignment. Cwd and layout were preserved; no focus command was issued. Coordinator remains at `w4:p7`. Rediscover live state before future control.
-
-The startup instruction changed actors/model policy only; later explicit 9a authority and its acceptance are recorded below. It does not authorize future per-slice replacements or context/compaction management. Older Luna/actor statements are historical. No layout, secret or shared-checkout change occurred.
-
-### Historical Task 9a acceptance — superseded by subsequent 9b authority
-
-**9a is accepted** under `docs/task-9a-contract.md`; acceptance is `docs/task-9a-acceptance.md`, findings/structural review `docs/task-9a-review.md`. Non-signup purpose-bound fresh Google proof, one consistent direct JSON export, durable admitted-proof consumption and current-view cancellation are verified. No deletion/status/ledger/purge work is accepted. **9b/9c, Task 10, commits, deployment and further agent replacement remain unauthorized.** Do not enable ordinary deletion before verified purge readiness or relax its separate 24-hour physical deadline.
-
-Final corrected verification: combined dedicated **41 tests / eight suites**, Worker **204 / 17**, independent integrated **227 / 22**, independent full **248 / 25**, and Coordinator **eleven HTTP/PostgreSQL spots / five suites**. All exited 0 with no failures/errors/skips on identical **115-path** inputs, manifest SHA-256 `963fd084c24e2010a95de059738a0a2454fe6501cbeb4ac3072b45a5a59dee34`. Coordinator independently checked copied XML, commands/exits/timestamps, source scope, complete before/after hashes and matching snapshots. All Maven windows are CLOSED. Current mutable reports hold the eleven spots, not full-suite totals.
-
-Final evidence is in `/tmp/gt-backend-task9a-qa-google-boundary-ihxdf5tg/qa-boundary-dedicated-01/`, `/tmp/gt-backend-task9a-worker-final-selfcheck-bdr30vtx/`, `/tmp/gt-backend-task9a-qa-final-zlszs3g5/qa-final-{integrated,full}-01/`, and `/tmp/gt-backend-task9a-coordinator-spot-isxls3co/`. Durable checkpoint: `/home/dragos/.local/state/gymtracka-backend/coordinator-checkpoints/task-9a-20261001T150307Z/`. Original temporary directory names are retained underneath; replace `/tmp/` with that prefix. Curated accepted state is in `project-state/`; verify `checkpoint-files.sha256` from its root. No Git checkout, local database, secret, mutable target or stale application JAR is copied; the wrapper build input is retained. This is a local handoff, not disaster-recovery/deployment acceptance.
-
-F9a.1–F9a.9 and Q9a.1–Q9a.6 are resolved within bounded evidence. The truly uncertain commit instant is not fault-reproduced; certain rollback/commit, in-doubt no-restoration source review and actual blocked-originator restart are separate evidence. Child A required test-owned forced SIGKILL (137), with death-before-B asserted. Real verifier tests use synthetic stub certificates, not live Google. Controlled disablement must be reverified via actual deletion in 9b/9c. No timeout/capacity/network-erasure SLA or system-wide logging/backup/Android claim follows. Historical stale-manifest checklists and one-byte restart evidence remain debug-only.
-
-Worker `backend_worker` / `w4:pD` and QA `backend_qa` / `w4:pE` are idle Muse Pi sessions named above; Coordinator is `w4:p7`. Preserve cwd/layout/services, rediscover live state before control and do not manage context/compaction. No source/test/build/normative change follows final verification; only status/acceptance documents changed. Backend HEAD remains `36fe88d`; all 9a work is uncommitted, and shared HEAD/supplied edits/hashes remain unchanged.
-
-### Historical 9a execution journal — superseded by acceptance
-
-The user authorized starting **slice 9a only** under `docs/task-9a-contract.md`, using the current Muse Worker/QA pair. The starting gate has passed: fresh exclusive frozen QA baseline passed 208 tests across 18 suites, exit 0 with zero failures/errors/skips, and the Coordinator approved the amended requirement-first QA plan and Worker revision 2 corrected by R3. 9a-only disjoint production/test authoring is now released to Worker/QA. Corrected stable production/test handoffs have arrived. **The first QA compile/correction/dedicated-verification window is now CLOSED with a production blocker** at `/tmp/gt-backend-task9a-qa-window-i49ayj5m/`, starting 113-path manifest SHA-256 `67406ec5a74313baae803bdcbf0a8950447d31eca0337961fe6d2ae9e27af734`. Dedicated-06 failed 2 of 36 tests: mid-root/final-closure aborts append a generic error body after export bytes. Worker owns the narrow F9a.8 export-specific async fix; QA tests are held unchanged, and no Maven slot is open. Old QA evidence contains checks against the stale starting manifest, not actual changed-test before/after hashes, so it is failure/debug evidence only; Q9a.6 requires fresh hashes/snapshots in the next freeze. Details and manifest helper are in `docs/task-9a-review.md`. The post-F9a.8 dedicated re-run at `/tmp/gt-backend-task9a-qa-postfix-u7r9akny/qa-dedicated-rerun-01/` is closed and independently green: 36 tests/six suites, exit 0, zero failures/errors/skips. Actual-current 113-path manifest `28e256593efb909b168d5c91b5b353b5293b30d472b7874fc75c38c7ec7c6e43` matches before/after/live and verified `input-snapshot/`; F9a.8 is resolved. One source-reviewed Q9a.5 fixture gap remains: a one-byte client probe does not prove the child was still exporting. QA is strengthening only that fixture with a deterministic post-consumption gate in the actual admitting child; production stays unchanged/read-only. QA supplied a src/test-only conditional post-consumption marker gate and amended restart wiring. The gated-child dedicated window at `/tmp/gt-backend-task9a-qa-gated-restart-7a5ulaiq/` is closed and independently green: 36 tests/six suites, exit 0, zero failures/errors/skips. Final 114-path hash is `46b4631f1a845b39a2758f72fe5fbfb67cf1e7e8a20e671eee877890861f82d7`; before/after/live match, and the full base snapshot plus Admission-test override reconstructs all inputs. Child-only post-consumption marker, blocked originator forced stop (exit 137), death-before-B, exact original-proof denial and fresh-proof success now have direct evidence. Q9a.5/Q9a.6 are resolved within that bounded evidence. The first Worker self-check at `/tmp/gt-backend-task9a-worker-selfcheck-h5fr0jpi/` passed 200 tests/16 suites, but is now historical: final real-verifier review found F9a.9 malformed JWT/runtime and provider-I/O classification gaps. The Coordinator approved a bounded existing `GoogleTokenVerifier` parse/provider split and exact typed lifecycle 503; `AuthService` remains unchanged. Actual-verifier HTTP/unit regressions independently passed 41 tests/eight suites at `/tmp/gt-backend-task9a-qa-google-boundary-ihxdf5tg/qa-boundary-dedicated-01/`, exit 0 with zero failures/errors/skips, on identical 115-path before/after/live/full-snapshot hash `963fd084c24e2010a95de059738a0a2454fe6501cbeb4ac3072b45a5a59dee34`. F9a.9 is resolved within that evidence. Final Worker self-check at `/tmp/gt-backend-task9a-worker-final-selfcheck-bdr30vtx/` is closed and independently green: 204 tests/17 suites, exit 0, zero failures/errors/skips, all 115 before/after/live/snapshot hashes match 963fd084. **QA-only final integrated/full regression window is open** at `/tmp/gt-backend-task9a-qa-final-zlszs3g5/` on identical inputs with full snapshot. All inputs are frozen; Worker/Coordinator have no Maven slot. No source/test corrections or retry in this window; blockers return to Coordinator. Structural source review passes; final QA and Coordinator HTTP/PostgreSQL spots still gate acceptance. Integrated/full QA, Worker self-check and Coordinator spots await separate slots. Current execution, design decisions and limits are in `docs/task-9a-review.md`; baseline evidence is `/tmp/gt-backend-task9a-qa-baseline-9a01/`, starting capture `/tmp/gt-backend-task9a-baseline-3kcl8w19/`, 98-path manifest SHA-256 `5419d57da52ae5b76b8431c4f94b4efc91272c407352e190976b56953b8f2bbf`. No 9b/9c, Task 10, commit, deployment, shared edit or agent replacement is authorized. All Maven runs still require the common build lock and explicit input freezes. The planning-only checkpoint below is historical where superseded by this authorization.
-
-### Task 9 plans ready; planning checkpoint
-
-The user authorized documents for three Task 9 slices and a next-Coordinator handoff. Read `docs/task-9-coordinator-handoff.md` first, then `docs/task-9-contract.md` and the individual `docs/task-9a-contract.md`, `docs/task-9b-contract.md`, and `docs/task-9c-contract.md` files. They cover fresh proofs/export, deletion/status, then physical purge/re-signup and integrated verification.
-
-No Task 9 implementation, test authoring, migration, runtime configuration, further agent replacement or additional commit is authorized. Planning files are uncommitted working-tree changes after the initial baseline; preserve them. The next Coordinator must obtain explicit 9a authorization, run a fresh frozen QA baseline, and review the no-edit design before authoring. The current Worker/QA model policy is approved above; future replacement remains a separate decision. In particular, do not enable deletion before verified purge readiness or relax the separate 24-hour account-purge deadline.
-
-### Committed Git baseline
-
-The user-authorized initial commit is **`36fe88d8951d17b66a45a537497fcd1b5dacf8d3`**, `Establish accepted backend baseline through task 8c`. It contains 113 accepted source, test, build and documentation files. Use it for meaningful baseline-relative Git diffs. Statements below about an entirely untracked backend are historical. The independent `shared-docs/` checkout is ignored, excluded and untouched by that commit, including its supplied edits and the approved retention clarifications. Its revision and exact dependency hashes are recorded in `docs/shared-docs-inputs.sha256`; HEAD alone does not reproduce the dirty shared state. No push was performed, and the commit request does not authorize automatic future commits or a shared-docs commit.
-
-### Historical Task 8 acceptance checkpoint
-
-**8c frozen snapshots is accepted**, alongside accepted 8a and 8b. Acceptance is recorded in `docs/task-8c-acceptance.md`; fixed criteria are in `docs/task-8c-contract.md`, and final review is in `docs/task-8c-review.md`. This completes the agreed bounded Task 8 sequence, not complete-v1 or deployment acceptance. The Task 9 plans now define the next proposed sequence, but it remains unstarted. Task 10 and broader legacy refactoring remain unauthorized. Historical instructions below describe earlier checkpoints, not current permissions or actor identities.
-
-The fresh openai-codex gpt-6-luna High pair completed 8c and is idle awaiting assignment: Worker `backend_worker` at `w4:pD` (session `gt-backend-worker-task8c`) and QA `backend_qa` at `w4:pE` (session `gt-backend-qa-task8c`). The Coordinator remains at `w4:p7`. Live discovery verified available interactive shells before startup; layout and working directories were preserved. Rediscover live state before future control. Do not manage agent context or compaction, reset these actors, or start later work without authority.
-
-Final independent QA passed **187 targeted tests across 15 suites** and **208 full-suite tests across 18 suites**. The final Worker self-check passed **147 tests across 11 suites**, and the Coordinator passed **eleven HTTP/PostgreSQL spots across three suites** and the mandatory structural gate. All exited with code 0 and had no failures, errors or skips on identical frozen **107-path** inputs, manifest SHA-256 `440efc494f7fffda03e74c6ef304fc27052a78d81a910e50bb0001974817a148`. Final evidence: `/tmp/gt-backend-task8c-qa-followup-integrated-tRe6jR/`, `/tmp/gt-backend-task8c-qa-followup-full-nKAbZq/`, `/tmp/gt-backend-task8c-worker-final-selfcheck-PVusxP/`, and `/tmp/gt-backend-task8c-coordinator-spot-qgsy9pph/`. Dedicated QA evidence is `/tmp/gt-backend-task8c-qa-followup-snapshot-W6aRB6/` (20 tests across three suites). The Coordinator independently checked fresh XML, report timestamps, hashes and baseline-relative scope. Final status-only README and documentation updates follow these manifests; production, tests, build and normative inputs are unchanged afterward. Current mutable reports contain later subsets; copied evidence preserves the full counts.
-
-The durable 8c checkpoint location is `/home/dragos/.local/state/gymtracka-backend/coordinator-checkpoints/task-8c-20261001T074849Z/`. Original `/tmp/gt-backend-task8c-*` directory names are retained directly under it, so replace `/tmp/` with that prefix when following evidence links. `project-state/` contains the curated accepted source, build, documentation and normative inputs; the starting baseline also preserves pre-clarification shared inputs. Verify the archive by running `sha256sum -c checkpoint-files.sha256` from that directory. This is a local handoff checkpoint, not backup/restore or deployment acceptance. It excludes Git checkouts, the local database, secrets, mutable target files and stale packaged JARs.
-
-All 8c verification windows are CLOSED. The resolved findings include capture-expiry rollback, V7 required JSON and revision checks, exhausted-retry HTTP 503 mapping, a test-imposed circular wait through an account foreign-key lock, and actual restart of the process that created the snapshot. The final test has child process A create the snapshot, stops A, and resumes the original token through process B. Earlier failed and superseded runs remain historical evidence, listed in `docs/task-8c-qa.md`; do not substitute their hashes or counts for the final freeze. No blocking finding remains.
-
-The user reconfirmed exact 24-hour access expiry with bounded physical cleanup afterward, authorizing only narrow clarifications to shared `retention.md` and `service-protocol.md`. All other supplied shared changes and HEAD remain preserved. Scheduling, backlog, downtime and large cascades may delay deletion; no production cleanup-latency SLA is claimed, and the separate account-deletion purge deadline is unchanged. The user requires proper grammatical English and normal spacing in messages and reports. Within an explicitly approved exclusive QA window, QA may preserve a failed run, close it, correct its own tests without weakening requirements, and retry with fresh manifests. Batch reports when green or genuinely blocked; production findings and behavior changes still go through the Coordinator.
-
-The starting copy is `/tmp/gt-backend-task8c-baseline-yxs7moqp`: 130 paths, with manifest SHA-256 `a04290f49a9a8cd5a782397d95ba5c3ba632fac1f89f1749db70b0aa21af8e55`. Shared-docs HEAD, status and diff were captured, and the durable 8b checkpoint was verified. Continue using `/tmp/gt-backend-task7-build.lock` and explicit input freezes. The Coordinator has not authored production code or tests. Its initial mcpls request reported Java initialization in progress, so it used read-only file inspection without changing tooling.
-
-### Historical overnight resume checklist
-
-- Read this checkpoint, `README.md`, `docs/task-8-contract.md`, `docs/task-8b-acceptance.md` and `docs/task-8b-contract.md`. No prior conversation is required to recover roles, scope, safety or verification state.
-- 8a and 8b are accepted. **Next is 8c, but await explicit user authorization**, then define its detailed fixed contract and start one fresh gpt-6-luna High Worker and QA. Prefer mcpls; do not manage context/compaction.
-- Rediscover live Herdr state before control; do not assume today's actors/panes survived overnight. Last observed Worker/QA were idle, with no Maven/Surefire/test-created backend process running. Preserve layout/cwd and unrelated services.
-- Backend work is uncommitted/entirely untracked by prior instruction. Do not stage/commit without approval; use manifests/baseline-relative comparisons, not empty git diff. Preserve supplied independent shared-docs and local DB/secrets.
-- **Durable evidence and code snapshot outside /tmp:** `/home/dragos/.local/state/gymtracka-backend/coordinator-checkpoints/task-8b-20260930T182603Z/`. Original temporary directory names are preserved under it; replace `/tmp/` with that prefix when following 8b evidence links. It includes baseline, failure/corrected/Worker/final QA/Coordinator artifacts and `project-state/` (accepted code/build/docs). Normative/catalogue copies are in its starting-baseline/shared-docs. Verify files using `sha256sum -c checkpoint-files.sha256` from that directory. This is a local handoff snapshot, not deployment/disaster-recovery acceptance; no Git checkout, secret file, local database, mutable target or stale packaged JAR was copied.
-
-**8b is accepted** for production 90-day contiguous-prefix pruning, bounded scheduling, preserved pull/replay/domain/identity/credential state and mandatory structural review. Acceptance: `docs/task-8b-acceptance.md`; fixed criteria: `docs/task-8b-contract.md`; review/findings: `docs/task-8b-review.md`. Final QA passed **167 targeted /188 full tests** (12 /15 suites); Coordinator passed **eight HTTP/PostgreSQL spots** (3 suites). All exit0, zero failures/errors/skips on identical frozen96-path inputs, manifest `6eea3454693c7bd1f1623e04a9aadc8dbaab5300c1decc3528fbce63feb3d9cd`. Artifacts: `/tmp/gt-backend-task8b-qa-final-target-20260930T175941Z/`, `/tmp/gt-backend-task8b-qa-final-full-20260930T180155Z/`, `/tmp/gt-backend-task8b-coordinator-spot-VRGuSP/`. Current target contains only eight later spots; copied reports preserve full counts. Final status-only README/docs updates follow those manifests; production/tests/build/normative inputs remain unchanged.
-
-**8c frozen snapshots is next but unauthorized**, and requires its own fresh Worker/QA pair. Current actors are idle awaiting assignment: backend_worker /w4:pD (gt-backend-worker-task8b), backend_qa /w4:pE (gt-backend-qa-task8b), both fresh-for-8b openai-codex gpt-6-luna High. No context/compaction management; all roles prefer mcpls and report actual errors/read-only fallback without tooling changes. Continue project-wide `/tmp/gt-backend-task7-build.lock` plus explicit input freezes. All 8b slots are closed. No local DB/secrets, staging/commit, applied migrations/shared-docs or layout change. Baseline `/tmp/gt-backend-task8b-baseline-ljes6evs` remains intact; QA baseline evidence is separately copied at `/tmp/gt-backend-task8b-qa-baseline-evidence-20260930T171026Z/`. Historical accepted 8a and Task5–7 checkpoints follow.
-
-**Task 8a is accepted** for incremental pull/shared durable account-bound cursors and the mandatory structural gate. Acceptance: `docs/task-8a-acceptance.md`; fixed scope/three-slice plan: `docs/task-8-contract.md`; review/findings: `docs/task-8a-review.md`. Final independent QA passed **156 targeted / 177 full tests** (10 / 13 suites); Coordinator passed **seven HTTP/PostgreSQL spots** (4 suites). All had zero failures/errors/skips on identical frozen 91-path inputs, manifest SHA-256 `b0b9df36e20f4e231c86f98335c7e860c183bf9eaaa8d0c140a716e8105de2aa`. Artifacts: `/tmp/gt-backend-task8a-qa-final-target-20260930T162426Z/`, `/tmp/gt-backend-task8a-qa-final-full-20260930T162611Z/`, `/tmp/gt-backend-task8a-coordinator-spot-9jWYnT/`. Current target contains only the later seven spots; copied reports preserve full counts. Manifests describe verification before final status-only README/docs updates; production/tests/build/shared-docs stayed unchanged afterward.
-
-The user approved three slices with one fresh gpt-6-luna High Worker/QA per slice and authorized **8a only**. At the 8a acceptance checkpoint, 8b awaited authorization; **the user has now authorized 8b under `docs/task-8b-contract.md`**. 8c snapshots and later work remain unauthorized. Do not manage agent context or compaction. All roles prefer mcpls Java navigation, report actual errors and use read-only fallback without tooling changes. Baseline copy: `/tmp/gt-backend-task8a-baseline-qntn15_q`, 121-path inputs manifest `3d9c88e024d5df34939afbeeba1154a8d668f1fa4ef03ac0553da2378de4478f`. Fresh Worker/QA use existing verified shell panes, same cwd/layout; Coordinator interruption was resumed without replacing them. Continue using `/tmp/gt-backend-task7-build.lock` and agreed input freezes. All 8a build/verification slots are closed. Historical Task 5–7 evidence follows; do not confuse its mutable target descriptions with current artifacts.
-
-**Task 6 is accepted** for all 14 direct mutable resource/command operations and separate resource replay. Task 5
-remains accepted for its 17-kind sync-push surface. This is not complete-v1 or deployment acceptance.
-
-**7a is accepted.** Its three individual exercise/workout/routine GETs, common canonical mapping, live authorization
-and consistent read boundary passed independent verification and the mandatory clean/readable-code gate.
-`docs/task-7a-acceptance.md` records scope, findings, structural review, exact commands and limits. Final post-fixture-fix
-QA passed **127 targeted / 148 full tests** (6 / 9 suites); Coordinator passed **five real HTTP/PostgreSQL spots** on
-the same frozen inputs. All had zero failures/errors/skips; final relevant manifests match at
-`9dd8ca3ba78174a2ea2c97e3b7ea385b2e9545e30ba838a957469c7abacff17b`. Artifacts:
-`/tmp/gt-backend-task7a-postfix-{targeted,full}/` and `/tmp/gt-backend-task7a-coordinator-spot/`. Copied reports carry the full historical 7a counts; current target is overwritten by later 7b checks. Final read-test hash:
-`7872fc4b3e3f2ac4f750abfb3116838621df800bf8c950965f5dda15a5538ba2`. 7a baseline:
-`/tmp/gt-backend-task7a-baseline-903cic`. Earlier green pre-fixture-fix runs are historical, not final-state evidence.
-
-The user authorized **starting 7b after finishing 7a with fresh Luna Worker/QA**, briefed on team roles. That boundary
-was met and **7b / integrated task 7 are now accepted** (`docs/task-7b-acceptance.md`). Fresh Luna High actors were
-role/safety/readability/mcpls-briefed and implemented/independently tested the assigned slice. Final QA passed **144
-targeted / 165 full tests** (7 / 10 suites); Coordinator passed **six real HTTP/PostgreSQL spots** and the mandatory
-final structural gate. All had zero failures/errors/skips on identical frozen inputs. Final relevant manifests match at
-`41b939b4d58fa5bb12a8f584e57bbbb49ecdbca69ac3005b2cdd9b62ced5e646`. Artifacts:
-`/tmp/gt-backend-task7b-qa-final-{target,full}/` and `/tmp/gt-backend-task7b-coordinator-spot/`. Current target contains
-only the later six-test subset; copied reports preserve full totals. Final browsing-test hash:
-`2d0371227412371ddc6cac4c6eecf229f512901e8a16d7623e251dbe5bee1463`. Exact browser suite count is 17; earlier
-18 counted @Testcontainers as @Test, not a missing case. Route-specific large/empty paging permutations remain explicit
-nonblocking coverage gaps, not changed behavior.
-
-7b baseline: `/tmp/gt-backend-task7b-baseline-w7uYPj`; both slice contracts were defined upfront in
-`docs/task-7-contract.md`, execution recorded in `docs/task-7b-contract.md`, review in `docs/task-7b-review.md`.
-Task 7 acceptance is bounded to individual reads and browsing/pagination, not complete-v1/deployment. At that checkpoint Worker and QA awaited assignment; **the user has now authorized 8a only** under `docs/task-8-contract.md`. Remaining roadmap: 8 pull/pruning/snapshots;
-9 account lifecycle; 10 broader API/operations/deployment. Dedicated legacy refactoring remains unauthorized.
-
-Worker owns production; QA owns requirement-first tests and independent verification; Coordinator owns contracts,
-integration/findings, structural review, acceptance and status docs, not production/test authoring. Serialize every
-Maven operation through `/tmp/gt-backend-task7-build.lock` AND freeze relevant inputs. No report line quota or mandatory
-matrix format; concise readable evidence/coverage/gaps suffice. Root README mcpls preference applies; both old agents
-used it and reported intermittent initialization/non-project diagnostics, using read-only fallback without changing
-tooling. The fresh-context permission is narrow and exercised at this boundary, not ongoing authority to reset agents.
-
-## Authority, repository and durable reports
-
-- Cwd: `/home/dragos/IdeaProjects/gt-backend`. Java 27, Spring Boot 4.1.1, Maven wrapper, PostgreSQL/Flyway; package
-  `com.dragosfotache.gtbackend`.
-- Normative behavior: `shared-docs/docs/backend-contract/README.md` and linked documents/OpenAPI. Local notes do not
-  override it; resolve mismatches explicitly. No Android source is needed to interpret these contracts.
-- Read `README.md`, `docs/task-6-contract.md`, `docs/task-6-acceptance.md`, `docs/task-6-worker.md`,
-  `docs/task-6-qa.md`, `docs/resource-mutations-implementation.md`, `docs/sync-push-implementation.md`, and
-  `docs/technical-debt.md` as relevant.
-- `shared-docs/` is an independent checkout, never a backend submodule, at HEAD
-  `3aefeb3e2eaa147793d595833217d6070eeabff2`. At 7a start it has pre-existing working-tree changes (including contract
-  wrapping/table formatting; OpenAPI diff is whitespace-only), unlike the historical clean task-6 checkout. Preserve
-  these supplied files/Git state; do not reset/edit them. The build uses the pinned catalogue seed/notices.
-- Backend still has no tracked files/commits/remotes or staging. Files are untracked; an empty git diff is not evidence.
-  Use baseline-relative comparisons and hashes. Task-6 baseline: `/tmp/gt-backend-task6-baseline-SjcEZw`; pre-5g
-  baseline: `/tmp/gt-backend-5g-baseline-BUCeOL`.
-
-## Accepted task-6 implementation
-
-- `ResourceController` exposes the 14 exercise/routine/workout mutations. Success is a canonical resource (201/200), or
-  a bodyless 204 DELETE response. Creation/editing have explicit distinct existence policies; copy sources are
-  path-only. No new GET/list, child or import endpoint was added.
-- `ResourcePreflight.prepare` uses named route-resolution, body-validation, command-adaptation and shared
-  structural-validation stages. UUID validation and custom-exercise field whitelists are shared locally. Strict original
-  UTF-8 bytes are retained independently of the internal command envelope.
-- `ResourceMutationExecutor` owns account/key replay, direct route policy, HTTP response mapping and evidence
-  persistence in one live-session/account-fenced transaction. Identity is method + normalized concrete route + exact
-  original body bytes. DELETE accepts only zero-byte/absent body; a nonempty body is unsupported, returns 422, and
-  claims no key.
-- Original status/body bytes, including domain rejections, are retained for the account lifetime independently of
-  sync-log retention. Identical retries recheck live authorization/preflight, then replay before current eligibility.
-  Changed identity returns 409 `idempotency_key_reused` without replacing evidence. Resource, sync and auth namespaces
-  remain separate; switching surfaces never recovers an uncertain operation.
-- Forward-only V6 adds `resource_mutations`. No synthetic sync evidence is created by resource calls. Domain rows,
-  revisions, reservations, cursor, complete ordered batch and original response commit together.
-- The sync wrapper owns sync replay/evidence. Shared domain application/publication returns explicit
-  `DomainCommandResult.Accepted` or `.Rejected`; no nullable resource mode remains in the legacy command body. Its
-  17-command algorithms, SQL, savepoints, domain classification and canonical publication were preserved.
-- F6.1 (nested transient publication failure returned 500 rather than 503) was fixed and independently verified with
-  rollback/unchanged retry. F6.2 (mixed long resource preflight/replay responsibilities and nullable mode coupling) was
-  resolved by a bounded local cleanup before acceptance.
-
-## Final verification and frozen inputs
-
-All relevant inputs were frozen and Maven operations serialized through `/tmp/gt-backend-task6-build.lock`.
-
-- Worker build-only package passed; post-cleanup resource/sync/preflight self-check passed **104 tests**, zero
-  failures/errors/skips.
-- Independent QA post-cleanup five-suite target passed **116 tests**; full `./mvnw -q test` passed **137 tests across 8
-  suites**, zero failures/errors/skips. Direct resource suite: 15; sync HTTP: 65; preflight: 24; auth HTTP: 11; Google
-  verifier: 1; catalogue: 7; account repository: 7; canonical aggregate repository: 7.
-- Coordinator reviewed final baseline-relative scope and AC6.1–6.7, independently validated fresh XML totals, and passed
-  **five real HTTP/PostgreSQL spot tests** on the identical final inputs.
-- Final QA manifests `/tmp/gt-backend-task6-qa-postcleanup-{before,after}-{targeted,full}.sha256` all hash to
-  `5efdeb16cd7cd45049201da37a1016560cb0ddba8b3a34170fa04c1e89c9219f`. Coordinator
-  `/tmp/gt-backend-task6-coordinator-{before,after}.sha256` match each other and final QA inputs.
-- Fresh reports: `/tmp/gt-backend-task6-qa-postcleanup-targeted-reports/`,
-  `/tmp/gt-backend-task6-qa-postcleanup-full-reports/`, `/tmp/gt-backend-task6-coordinator-spot-reports/`. Exact
-  commands/logs are in acceptance and QA reports. Current `target/surefire-reports/` includes the later five-test
-  resource subset; copied reports carry the full totals.
-- Earlier green pre-cleanup results are historical, not final-state evidence. The original 113-test run had the
-  confirmed F6.1 failure; later QA compiler/fixture/helper corrections did not relax requirements or change production
-  policy.
-
-Historical accepted task-6 SHA-256 (several current files differ; do not present these as fresh 7a inputs):
-
-| File                                   | Hash                                                               |
-|----------------------------------------|--------------------------------------------------------------------|
-| ResourceController.java                | `56ba0bb1793fd1aa292ef2078c27de8fe6ca6670192fd2b24ee6c126ff33cc04` |
-| ResourcePreflight.java                 | `d811dc559e6aef8d423b154b7d2d2a40a796ab0439c74888ca553e82ed72c8ed` |
-| ResourceMutationExecutor.java          | `d8e68e185e9aa4c5e992a434ffea0af15743337a7451951cc80745038300af0e` |
-| RoutineUpsertExecutor.java             | `23c39e2bca1bf6f2017a7827fce9d80156a2e2a64a4c85db0a80cdb981c02425` |
-| PushPreflight.java                     | `8595acb0c7f5dea32219d8c888a7df65aab1b27974193293e1d4c70d7a896a8d` |
-| V6__resource_idempotency.sql           | `a7fd5660687cf4b3c5fd5f6d72ba2f037e923f434b94cbaee86db38063f38792` |
-| DirectResourceHttpIntegrationTest.java | `b77a4b36790d9b491f10cc4a0cec6bd77310098b0f19433b56e74a9c937880e5` |
-
-## Maintainability, limits and history
-
-Maintainability/readability are mandatory acceptance criteria alongside function and contract compliance. Delegate small
-cohesive methods, explicit results, meaningful names, practical responsibility separation and removal of obvious
-duplication. Avoid growing complex methods with additional command checks, mode flags, nullable coordination or deep
-nesting. Avoid speculative handler frameworks. Preserve behavior/tests. Review structure explicitly; return reasonably
-local deterioration for cleanup before acceptance. Use concise, normal grammatical English in every handoff.
-
-`RoutineUpsertExecutor.applyCommand` remains legacy debt with mixed eligibility, transformation, SQL and event
-construction. Task 6 did not broadly redesign it or extend its mode flags. See `docs/technical-debt.md` for a separately
-approved refactoring task; no such work is authorized merely by recording it.
-
-Coverage is representative, not every state/fault/route combination. Direct evidence and shared-engine supplements are
-distinguished in QA's matrix. No blocking finding or unmet bounded criterion remains. Auth-cleanup/Hikari connection
-errors after stopped Testcontainers remain a recorded nonblocking lifecycle anomaly, not fixed in this task.
-Deployment/HTTPS/release OAuth/Android integration and later API surfaces remain unverified.
-
-Task 5g history: `docs/task-5g-acceptance.md` records bounded acceptance, independent 89 targeted/122 full tests and
-five Coordinator spots. Its unknown integrity/replay poisoning and root-versus-child classifier fixes remain preserved.
-The separate routine-root-versus-child collision permutation is a recorded nonblocking coverage gap, not a behavioral
-waiver. Historical executor hash `02b9018484ff6b4b6811817195a2f26ace7c4cc1c599f413db01bf5d90399a95` is not current; sync
-HTTP test hash `b90e370f1f8066c63543da4fbaf98659a6bd7136346bac00c1125f2cfddc01ea` remains unchanged.
-
-## Protected resources and team
-
-- Applied V1–V5 are immutable; future schema changes are forward-only. V6 was exercised only in isolated PostgreSQL 16
-  test databases, not applied to preserved local `gymtracka`. Local schema/data and existing services were not reset or
-  destructively tested.
-- Never read, source, print, copy, rotate or expose `~/.config/gymtracka-backend/dev.env` or secrets. No local secrets
-  were accessed for these checks. No staging/commit, deployment, submodule conversion or layout change occurred.
-- Coordinator owns scope/contracts/integration/findings/acceptance/status docs, not production or test authoring. Worker
-  owns production; QA owns tests and independent checks. Allow disjoint concurrent edits when safe; freeze relevant
-  inputs for verification in addition to serializing Maven.
-- Herdr: `HERDR_ENV=1`, workspace `w4`, tab `w4:t1`; Coordinator `w4:p7`, Worker `backend_worker` / `w4:pD` (session `gt-backend-worker-task8b`), QA `backend_qa` / `w4:pE` (session `gt-backend-qa-task8b`). Both are openai-codex gpt-6-luna High pi processes, fresh for authorized 8b. Completed idle 8a processes exited via native /quit; foreground zsh/cwd availability was verified before starting 8b without creating/moving/closing panes. Historical task7/8a/pC/pA actor identifiers are not current.
-- Preserve panes/cwd/layout. Read the Herdr skill, verify environment and rediscover live IDs before control. Idle agent panes are not free shells. 8b authorization is now exercised; future authorized 8c uses another fresh pair per the user's three-slice plan, not continuing permission to start 8c or terminate unrelated agents/services. Do not manage context or compaction.
+# Contributor / agent handoff
+
+## Read first
+
+1. [README](../README.md): implemented surface, build/test commands and shared inputs.
+2. [Architecture](architecture.md): components, transaction/replay boundaries and purge behavior.
+3. [Known limitations](technical-debt.md): especially purge hardening and coverage gaps.
+4. [Personal-server runbook](personal-server.md): environment, startup and backup cautions.
+5. Relevant parts of the authoritative [shared contract](../shared-docs/docs/backend-contract/README.md).
+
+Historical development task journals are no longer current instructions. A concise
+[history](archive/README.md) explains how to recover original reports from Git.
+No unfinished work is authorized merely by an old task plan or acceptance heading.
+
+## Current scope
+
+The v1 route implementations exist. The owner uses the backend and Android app
+personally; a public-service deployment/compliance program is not the next implicit
+task. Android integration remains separate. There is no fixed "Task 10" assignment.
+
+Do not infer complete purge/deadline/race coverage from the historical green suite.
+The documentation review corrected those overclaims and recorded concrete follow-up
+items. This cleanup does not change code, keys, databases or any running server's flag.
+
+## Safety and change control
+
+- Never read, print, copy, overwrite or rotate real secrets through agent tools.
+  `~/.config/gymtracka-backend/dev.env` is private. It is not a test input.
+- Use isolated Testcontainers PostgreSQL for tests, not `gymtracka` or
+  `gymtracka_prod`. Do not reset/migrate a personal database without explicit approval.
+- Applied V1–V9 are immutable; future changes are forward-only.
+- `shared-docs/` is a separate ignored checkout, not a submodule. Preserve its
+  supplied state; review shared edits and backend hash-pin updates separately.
+- Never stage/commit, deploy, change live configuration, stop unrelated services,
+  replace agents or change layout/settings without authorization.
+- Serialize Maven operations with `/tmp/gt-backend-task7-build.lock`. During team
+  verification, freeze relevant source/build/shared inputs as well; a lock alone
+  does not prevent edits. Record actual commands/results and preserve failures.
+- Maintain readable, cohesive code and existing assertions; do not weaken tests
+  to make a fixture pass or insert speculative frameworks into unrelated work.
+
+## Team workflow when requested
+
+The Coordinator owns architecture, interfaces, invariants, responsibilities,
+acceptance criteria and design decisions. Worker owns implementation within that
+design and reports ambiguities back rather than deciding them. QA owns independent,
+contract-derived tests and verification. Disjoint authoring is allowed; verification
+requires frozen inputs and exclusive build slots.
+
+Use Herdr only when requested. Rediscover live agent identities/panes before control;
+never assume historical IDs or that an idle agent pane is a free shell. Preserve cwd,
+layout and unrelated services. Assign work asynchronously; Worker/QA notify the
+Coordinator with a fire-and-forget Herdr message when green or genuinely blocked,
+without `--wait`, then hold. Do not manage context/compaction implicitly.
+
+Prefer `mcpls` Java navigation if available; report actual tool errors and use
+read-only fallback without changing global tooling. Write concise grammatical reports.
+No verification or authoring slot remains open from the historical implementation.
