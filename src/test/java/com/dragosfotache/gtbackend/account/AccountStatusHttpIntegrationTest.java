@@ -323,6 +323,9 @@ class AccountStatusHttpIntegrationTest {
         String purgeBy = deleted.node().path("purgeBy").asText();
 
         // A distinct fresh sign-in creates empty B with a new UUID after A is detached.
+        // The signup fence requires a challenge strictly after the recorded deletion: advance
+        // the fixed test clock past the deletion instant before the fresh signup challenge.
+        statusClock.set(statusClock.instant().plusMillis(1));
         ProofChallenge signup = challenge("{}");
         lenient().when(verifier.verify("status-resignup-b", signup.nonce))
                 .thenReturn(new Verified("status-resignup-subject", null));

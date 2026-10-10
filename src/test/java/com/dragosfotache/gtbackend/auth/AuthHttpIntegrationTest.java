@@ -210,7 +210,7 @@ class AuthHttpIntegrationTest {
         HttpHeaders h = headers();
         h.set("Idempotency-Key", key.toString());
         String initial = send(url("/v1/auth/google"), body, h, String.class).getBody();
-        var replacement = new AuthService(jdbc, crypto, verifier, new com.fasterxml.jackson.databind.ObjectMapper(), subjectFence);
+        var replacement = new AuthService(jdbc, crypto, verifier, new com.fasterxml.jackson.databind.ObjectMapper(), subjectFence, java.time.Clock.systemUTC());
         byte[] replayed = new org.springframework.transaction.support.TransactionTemplate(txManager).execute(s -> replacement.exchange(key, UUID.fromString(c.id), "instance-replay", body.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         assertArrayEquals(initial.getBytes(java.nio.charset.StandardCharsets.UTF_8), replayed);
     }

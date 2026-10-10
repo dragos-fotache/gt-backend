@@ -185,11 +185,22 @@ class SyncSnapshotLifecycleHttpIntegrationTest {
     private Account account() {
         UUID account = UUID.randomUUID(), session = UUID.randomUUID();
         String token = UUID.randomUUID().toString();
+        // Anchor the bearer to the shared service clock so accounts created after a test
+        // advances fake time stay valid for the existing 2-hour duration.
+        Instant issued = clock.instant();
         jdbc.update("insert into accounts(id) values(?)", account);
-        jdbc.update("insert into auth_sessions(id,account_id,created_at) values(?,?,clock_timestamp())", session, account);
+        jdbc.update("insert into auth_sessions(id,account_id,created_at) values(?,?,?)", session, account, java.sql.Timestamp.from(issued));
         jdbc.update("insert into auth_credentials(fingerprint,session_id,kind,issued_at,expires_at) " +
-                "values(?,?,'access',clock_timestamp(),clock_timestamp()+interval '2 hours')", crypto.digest(token), session);
+                "values(?,?,'access',?,?)", crypto.digest(token), session,
+                java.sql.Timestamp.from(issued), java.sql.Timestamp.from(issued.plus(2, ChronoUnit.HOURS)));
         return new Account(account, token);
+    }
+
+    // Keeps a fixture bearer current through a synthetic +24h snapshot-expiry scenario so
+    // observed 410s isolate snapshot expiry rather than bearer expiry. Production TTLs unchanged.
+    private void extendBearerThrough(Account account, Instant expiresAt) {
+        jdbc.update("update auth_credentials set expires_at=? where fingerprint=?",
+                java.sql.Timestamp.from(expiresAt), crypto.digest(account.token()));
     }
 
     private String id() { return UUID.randomUUID().toString(); }
@@ -338,6 +349,7 @@ class SyncSnapshotLifecycleHttpIntegrationTest {
         createCustom(owner, "expiry two");
         Instant creation = Instant.now().truncatedTo(ChronoUnit.MICROS);
         setServiceTime(creation);
+        extendBearerThrough(owner, creation.plusSeconds(86_400).plus(2, ChronoUnit.HOURS));
         Reply first = snapshot(owner, null, 1);
         assertEquals(200, first.status(), first.text());
         String token = first.json().path("nextPageToken").asText();
@@ -792,6 +804,7 @@ class SyncSnapshotLifecycleHttpIntegrationTest {
         createCustom(owner, "cleanup race second");
         Instant creation = Instant.now().truncatedTo(ChronoUnit.MICROS);
         setServiceTime(creation);
+        extendBearerThrough(owner, creation.plusSeconds(86_400).plus(2, ChronoUnit.HOURS));
         Reply first = snapshot(owner, null, 1);
         assertEquals(200, first.status(), first.text());
         String token = first.json().path("nextPageToken").asText();
@@ -822,7 +835,6 @@ class SyncSnapshotLifecycleHttpIntegrationTest {
     @Test
     void boundedCleanupMakesProgressAcrossFiniteTicksAndPreservesNewSnapshot() {
         Account owner = account();
-        Account protectedAccount = account();
         Instant firstCreation = Instant.now().truncatedTo(ChronoUnit.MICROS);
         setServiceTime(firstCreation);
         for (int i = 0; i < 205; i++) {
@@ -830,6 +842,8 @@ class SyncSnapshotLifecycleHttpIntegrationTest {
             assertEquals(200, created.status(), created.text());
         }
         setServiceTime(firstCreation.plusSeconds(86_400));
+        // Created after the fake +24h advance so the helper anchors its bearer to test time.
+        Account protectedAccount = account();
         Reply live = snapshot(protectedAccount, null, 200);
         assertEquals(200, live.status(), live.text());
 

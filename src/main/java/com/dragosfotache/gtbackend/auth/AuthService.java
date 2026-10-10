@@ -6,8 +6,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Service
@@ -17,15 +19,17 @@ public class AuthService {
     private final GoogleTokenVerifier google;
     private final ObjectMapper mapper;
     private final com.dragosfotache.gtbackend.account.DeletionSubjectFence subjectFence;
+    private final Clock clock;
 
     public AuthService(JdbcTemplate jdbc, AuthCrypto crypto, GoogleTokenVerifier google, ObjectMapper mapper,
-                       com.dragosfotache.gtbackend.account.DeletionSubjectFence subjectFence) {
+                       com.dragosfotache.gtbackend.account.DeletionSubjectFence subjectFence, Clock clock) {
         if (subjectFence == null) throw new IllegalArgumentException("Deletion subject fence is required");
         this.jdbc = jdbc;
         this.crypto = crypto;
         this.google = google;
         this.mapper = mapper;
         this.subjectFence = subjectFence;
+        this.clock = clock;
     }
 
     @Transactional
@@ -35,9 +39,10 @@ public class AuthService {
             throw new AuthException(422, "validation_error");
         UUID id = UUID.randomUUID();
         String nonce = crypto.nonce();
-        Instant now = Instant.now();
-        jdbc.update("INSERT INTO auth_challenges(id,nonce,purpose,created_at,expires_at) VALUES (?,?,?::auth_challenge_purpose,?,?)", id, nonce, purpose, Timestamp.from(now), Timestamp.from(now.plusSeconds(300)));
-        return Map.of("challengeId", id, "nonce", nonce, "expiresAt", now.plusSeconds(300).toString());
+        Instant issued = clock.instant().truncatedTo(ChronoUnit.MILLIS);
+        Instant expires = issued.plusSeconds(300);
+        jdbc.update("INSERT INTO auth_challenges(id,nonce,purpose,created_at,expires_at) VALUES (?,?,?::auth_challenge_purpose,?,?)", id, nonce, purpose, Timestamp.from(issued), Timestamp.from(expires));
+        return Map.of("challengeId", id, "nonce", nonce, "expiresAt", expires.toString());
     }
 
     @Transactional
@@ -48,7 +53,7 @@ public class AuthService {
         byte[] replay = replay("google", key, identity, tokenFp);
         if (replay != null) return replay;
         Challenge c = challengeRow(challengeId);
-        if (c == null || c.consumed || !c.purpose.equals("signIn") || !Instant.now().isBefore(c.expires))
+        if (c == null || c.consumed || !c.purpose.equals("signIn") || !clock.instant().isBefore(c.expires))
             throw new AuthException(401, "invalid_google_credential");
         GoogleTokenVerifier.Verified verified;
         try {
@@ -79,11 +84,13 @@ public class AuthService {
         byte[] replay = replay("refresh", key, identity, fp);
         if (replay != null) return replay;
         Credential c = credential(fp);
-        if (c == null || !c.kind.equals("refresh") || c.expires == null || !Instant.now().isBefore(c.expires))
+        if (c == null || !c.kind.equals("refresh") || c.expires == null || !clock.instant().isBefore(c.expires))
             throw new AuthException(401, "reauthentication_required");
         lockSession(c.session);
         c = credential(fp);
         if (c == null) throw new AuthException(401, "reauthentication_required");
+        if (c.expires == null || !clock.instant().isBefore(c.expires))
+            throw new AuthException(401, "reauthentication_required");
         if (c.consumed || c.revoked || !accountLive(c.account)) {
             jdbc.update("UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE id=?", c.session);
             throw new AuthException(401, "reauthentication_required");
@@ -99,7 +106,8 @@ public class AuthService {
      */
     @Transactional
     public int cleanupExpired() {
-        Timestamp cutoff = Timestamp.from(Instant.now());
+        // Floor to DB precision so the cutoff never rounds upward and deletes an unexpired row.
+        Timestamp cutoff = Timestamp.from(clock.instant().truncatedTo(ChronoUnit.MICROS));
         int removed = 0;
         removed += jdbc.update("WITH victims AS (SELECT id FROM auth_challenges WHERE consumed_at IS NOT NULL OR expires_at<=? ORDER BY expires_at LIMIT 500 FOR UPDATE SKIP LOCKED) DELETE FROM auth_challenges c USING victims v WHERE c.id=v.id", cutoff);
         removed += jdbc.update("WITH victims AS (SELECT operation,request_key FROM auth_idempotency WHERE expires_at<=? ORDER BY expires_at LIMIT 500 FOR UPDATE SKIP LOCKED) DELETE FROM auth_idempotency i USING victims v WHERE i.operation=v.operation AND i.request_key=v.request_key", cutoff);
@@ -112,14 +120,16 @@ public class AuthService {
     public void logout(String token) {
         byte[] fp = crypto.digest(token);
         Credential c = credential(fp);
-        if (c == null || !c.kind.equals("refresh") || c.expires == null || !Instant.now().isBefore(c.expires)) return;
+        if (c == null || !c.kind.equals("refresh") || c.expires == null || !clock.instant().isBefore(c.expires)) return;
         lockSession(c.session);
+        c = credential(fp);
+        if (c == null || !c.kind.equals("refresh") || c.expires == null || !clock.instant().isBefore(c.expires)) return;
         jdbc.update("UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE id=?", c.session);
     }
 
     private Grant createGrant(UUID account, String display, UUID existingSession) {
         UUID sid = existingSession == null ? UUID.randomUUID() : existingSession;
-        Instant now = Instant.now(), ax = now.plusSeconds(900), rx = now.plus(Duration.ofDays(30));
+        Instant now = clock.instant().truncatedTo(ChronoUnit.MILLIS), ax = now.plusSeconds(900), rx = now.plus(Duration.ofDays(30));
         if (existingSession == null)
             jdbc.update("INSERT INTO auth_sessions(id,account_id,created_at) VALUES (?,?,?)", sid, account, Timestamp.from(now));
         String access = crypto.randomToken(), refresh = crypto.randomToken();
@@ -153,7 +163,8 @@ public class AuthService {
             Timestamp expiry = rs.getTimestamp(6);
             lockSession(session);
             Credential current = credential(refresh);
-            if (!Instant.now().isBefore(expiry.toInstant()) || !accountLiveForSession(session) || current == null || current.consumed || current.revoked || !Instant.now().isBefore(current.expires))
+            Instant now = clock.instant();
+            if (!now.isBefore(expiry.toInstant()) || !accountLiveForSession(session) || current == null || current.consumed || current.revoked || !now.isBefore(current.expires))
                 throw new AuthException(401, "reauthentication_required");
             return crypto.decrypt(rs.getBytes(3));
         }, op, key);

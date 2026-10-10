@@ -85,11 +85,14 @@ class SyncHistoryPruningHttpIntegrationTest {
     private Account account() {
         UUID id = UUID.randomUUID(), sessionId = UUID.randomUUID();
         String bearer = UUID.randomUUID().toString();
+        // Anchor the bearer to the shared service clock so accounts created after a test
+        // advances fake time stay valid for the existing 2-hour duration.
+        Instant issued = clock.instant();
         jdbc.update("insert into accounts(id) values(?)", id);
-        jdbc.update("insert into auth_sessions(id,account_id,created_at) values(?,?,clock_timestamp())", sessionId, id);
+        jdbc.update("insert into auth_sessions(id,account_id,created_at) values(?,?,?)", sessionId, id, Timestamp.from(issued));
         jdbc.update("insert into auth_credentials(fingerprint,session_id,kind,issued_at,expires_at) "
-                + "values(?,?,'access',clock_timestamp(),clock_timestamp()+interval '2 hours')",
-                crypto.digest(bearer), sessionId);
+                + "values(?,?,'access',?,?)",
+                crypto.digest(bearer), sessionId, Timestamp.from(issued), Timestamp.from(issued.plus(2, ChronoUnit.HOURS)));
         return new Account(id, bearer);
     }
 

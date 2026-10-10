@@ -901,6 +901,10 @@ class BrowsingHttpIntegrationTest {
         Account owner = account();
         Instant started = Instant.parse("2031-02-03T04:05:06.000Z");
         when(serviceClock.instant()).thenReturn(started);
+        // The shared service clock also drives bearer validation: keep this synthetic-2031
+        // fixture's access credential current across the 1800s page-expiry span.
+        jdbc.update("update auth_credentials set expires_at=? where fingerprint=?",
+                Timestamp.from(started.plusSeconds(3600)), crypto.digest(owner.accessToken()));
         JsonNode first = get(owner, "/v1/catalogue/exercises?limit=1").json();
         assertPageEnvelope(first, true);
         String token = first.path("nextPageToken").asText();
