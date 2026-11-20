@@ -1,5 +1,6 @@
 package com.dragosfotache.gtbackend.sync;
 
+import com.dragosfotache.gtbackend.domain.AggregateValidator;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
@@ -28,7 +29,7 @@ public final class PushPreflight {
     private static final JsonFactory F = JsonFactory.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).disable(JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS).build();
     private static final ObjectMapper M = new ObjectMapper(F);
     private static final Pattern UUID = Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
-    private static final Set<String> TYPES = Set.of("workout.start", "workout.upsert", "workout.finish", "workout.performAgain", "routine.startWorkout", "workout.saveAsRoutine", "workout.addExercises", "workout.replaceExercise", "workout.deleteExercise", "workout.deleteSet", "routine.upsert", "routine.save", "routine.deleteExercise", "routine.deleteSet", "customExercise.upsert", "aggregate.delete", "aggregate.import");
+    private static final Set<String> TYPES = Set.of("workout.start", "workout.startFromSnapshot", "workout.upsert", "workout.finish", "workout.performAgain", "routine.startWorkout", "workout.saveAsRoutine", "workout.addExercises", "workout.replaceExercise", "workout.deleteExercise", "workout.deleteSet", "routine.upsert", "routine.save", "routine.deleteExercise", "routine.deleteSet", "customExercise.upsert", "aggregate.delete", "aggregate.import");
 
     public List<Mutation> parse(byte[] bytes) {
         try {
@@ -97,7 +98,8 @@ public final class PushPreflight {
                 str(p, "name");
                 date(p.get("startedAt"));
             }
-            case "workout.upsert" -> workout(p, false, target);
+            case "workout.startFromSnapshot" -> workout(p, WorkoutInput.SNAPSHOT_START, target);
+            case "workout.upsert" -> workout(p, WorkoutInput.UPDATE, target);
             case "workout.finish" -> {
                 obj(p, "finishedAt");
                 date(p.get("finishedAt"));
@@ -172,7 +174,7 @@ public final class PushPreflight {
             case "aggregate.import" -> {
                 obj(p, "record");
                 if (!p.path("record").isObject()) throw validation();
-                if (ag.equals("workout")) workout((ObjectNode) p.get("record"), true, target);
+                if (ag.equals("workout")) workout((ObjectNode) p.get("record"), WorkoutInput.IMPORT, target);
                 else if (ag.equals("routine")) routine((ObjectNode) p.get("record"), target);
                 else custom((ObjectNode) p.get("record"), target);
             }
@@ -187,17 +189,21 @@ public final class PushPreflight {
         if (!ag.equals(expected)) throw validation();
     }
 
-    private static void workout(ObjectNode o, boolean importing, String target) {
+    private enum WorkoutInput { SNAPSHOT_START, UPDATE, IMPORT }
+
+    private static void workout(ObjectNode o, WorkoutInput input, String target) {
         obj(o, "id", "name", "status", "startedAt", "finishedAt", "exercises");
         commonId(o, "id", target);
-        str(o, "name");
+        String name = str(o, "name");
+        boolean snapshotStart = input == WorkoutInput.SNAPSHOT_START;
+        if (snapshotStart && AggregateValidator.blank(name)) throw validation();
         if (!Set.of("active", "finished").contains(str(o, "status"))) throw validation();
-        if (!importing && !o.get("status").textValue().equals("active")) throw validation();
+        if (input != WorkoutInput.IMPORT && !o.get("status").textValue().equals("active")) throw validation();
         date(o.get("startedAt"));
-        if (importing) {
+        if (input == WorkoutInput.IMPORT) {
             if (o.has("finishedAt") && !o.get("finishedAt").isNull()) date(o.get("finishedAt"));
         } else if (o.has("finishedAt")) throw validation();
-        List<JsonNode> ex = arr(o.get("exercises"), false);
+        List<JsonNode> ex = arr(o.get("exercises"), snapshotStart);
         HashSet<String> identities = new HashSet<>();
         identities.add(target);
         for (int i = 0; i < ex.size(); i++) {
@@ -220,6 +226,8 @@ public final class PushPreflight {
                 if (s.has("weightKg")) nullableDouble(s.get("weightKg"));
                 bool(s.get("isCompleted"));
                 if (s.has("restSeconds")) nullableInt(s.get("restSeconds"), 0);
+                if (snapshotStart && (s.get("isCompleted").booleanValue() || s.hasNonNull("restSeconds")))
+                    throw validation();
             }
         }
     }

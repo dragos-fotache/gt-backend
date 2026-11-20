@@ -117,9 +117,9 @@ public class CanonicalAggregateRepository {
     }
 
     /**
-     * Clone command variant: children are already validated and carry fresh client-bound IDs.
+     * Starts a workout with children supplied by a copy command or the client's starting snapshot.
      */
-    public StartWorkoutResult startWorkoutCloneRowsInLockedAccount(UUID owner, Workout value) {
+    public StartWorkoutResult startPopulatedWorkoutRowsInLockedAccount(UUID owner, Workout value) {
         return createActiveWorkoutInLockedAccount(owner, value);
     }
 

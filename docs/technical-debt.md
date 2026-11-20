@@ -78,7 +78,7 @@ but do not claim that shared privacy/restore obligations have been satisfied.
 ## Legacy mutation command orchestration
 
 `sync/RoutineUpsertExecutor.applyCommand` remains a large dispatcher combining
-seventeen commands, eligibility SQL, flags/nullable intermediates, savepoints,
+eighteen commands, eligibility SQL, flags/nullable intermediates, savepoints,
 persistence and canonical batch construction. Separate replay ownership and explicit
 domain results were extracted, but this is not the preferred structure for new features.
 

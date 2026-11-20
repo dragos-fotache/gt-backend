@@ -51,6 +51,7 @@ class PushPreflightTest {
         String emptyChild = "{\"id\":\"00000000-0000-0000-0000-000000000012\",\"startedAt\":\"2025-01-01T00:00:00Z\",\"childIds\":[]}";
         String[] mutations = {
                 envelope("workout.start", "workout", "{\"id\":\"00000000-0000-0000-0000-000000000012\",\"name\":\"W\",\"startedAt\":\"2025-01-01T00:00:00Z\"}"),
+                envelope("workout.startFromSnapshot", "workout", workout("")),
                 envelope("workout.upsert", "workout", workoutRecord),
                 envelope("workout.finish", "workout", "{\"finishedAt\":\"2025-01-01T00:00:00Z\"}"),
                 envelope("workout.performAgain", "workout", emptyChild.substring(0, emptyChild.length() - 1) + ",\"sourceWorkoutId\":\"00000000-0000-0000-0000-000000000021\"}"),
@@ -87,6 +88,50 @@ class PushPreflightTest {
         assertArrayEquals(b(a), got.get(0).raw());
         assertArrayEquals(b(c), got.get(1).raw());
         assertArrayEquals(got.get(0).raw(), parser.parse(b(one(a))).getFirst().raw());
+    }
+
+    @Test
+    void snapshotStartPreservesAcceptedBytesWithOptionalValuesAndZeroSets() {
+        String input = workout(",\"repetitions\":null,\"weightKg\":0.0,\"restSeconds\":null")
+                .replace("\"name\":\"W\"", "\"name\" : \" Lïft \"");
+        String mutation = envelope("workout.startFromSnapshot", "workout", input);
+        assertArrayEquals(b(mutation), parser.parse(b(one(mutation))).getFirst().raw());
+        String zeroSets = input.substring(0, input.indexOf("\"sets\":")) + "\"sets\":[]}]}";
+        assertDoesNotThrow(() -> parser.parse(b(one(envelope("workout.startFromSnapshot", "workout", zeroSets)))));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidSnapshotStarts")
+    void snapshotStartRejectsInvalidStructure(String scenario, String mutation) {
+        var failure = assertThrows(PushPreflight.Failure.class, () -> parser.parse(b(one(mutation))));
+        assertEquals(422, failure.status);
+        assertEquals("validation_error", failure.code);
+    }
+
+    static Stream<Arguments> invalidSnapshotStarts() {
+        String input = workout("");
+        String targetId = "00000000-0000-0000-0000-000000000012";
+        String entryId = "00000000-0000-0000-0000-000000000013";
+        String setId = "00000000-0000-0000-0000-000000000015";
+        String mutation = envelope("workout.startFromSnapshot", "workout", input);
+        return Stream.of(
+                Arguments.of("wrong aggregate type", mutation.replace("\"aggregateType\":\"workout\"", "\"aggregateType\":\"routine\"")),
+                Arguments.of("target differs from the payload ID", mutation.replace("\"aggregateId\":\"" + targetId, "\"aggregateId\":\"" + setId)),
+                Arguments.of("malformed exercise child ID", mutation.replace(entryId, "bad-id")),
+                Arguments.of("root and exercise IDs collide", mutation.replace(entryId, targetId)),
+                Arguments.of("exercise and set IDs collide", mutation.replace(setId, entryId)),
+                Arguments.of("positions must start at zero", mutation.replace("\"position\":0", "\"position\":1")),
+                Arguments.of("set positions must start at zero", mutation.replace("\"position\":0,\"isCompleted\"", "\"position\":1,\"isCompleted\"")),
+                Arguments.of("empty exercise list", envelope("workout.startFromSnapshot", "workout", input.substring(0, input.indexOf("\"exercises\"")) + "\"exercises\":[]}")),
+                Arguments.of("empty name", mutation.replace("\"name\":\"W\"", "\"name\":\"\"")),
+                Arguments.of("Unicode blank name", mutation.replace("\"name\":\"W\"", "\"name\":\" \\t 　\"")),
+                Arguments.of("finished status", mutation.replace("\"active\"", "\"finished\"")),
+                Arguments.of("completed initial set", mutation.replace("\"isCompleted\":false", "\"isCompleted\":true,\"repetitions\":1,\"weightKg\":0")),
+                Arguments.of("recorded rest even when zero", envelope("workout.startFromSnapshot", "workout", workout(",\"restSeconds\":0"))),
+                Arguments.of("unsupported finish timestamp", mutation.replace("\"status\":", "\"finishedAt\":null,\"status\":")),
+                Arguments.of("unsupported routine binding", mutation.replace("\"status\":", "\"sourceRoutineId\":\"" + targetId + "\",\"status\":")),
+                Arguments.of("unsupported canonical label", mutation.replace("\"notes\":", "\"exerciseName\":\"label\",\"notes\":")),
+                Arguments.of("unsupported set field", envelope("workout.startFromSnapshot", "workout", workout(",\"revision\":1"))));
     }
 
     @Test

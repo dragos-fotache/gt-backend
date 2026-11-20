@@ -25,7 +25,7 @@ Controllers exist for all paths in the v1 OpenAPI:
 - Google challenge/exchange, refresh and logout.
 - Catalogue/custom-exercise search, individual resources, workout/routine browsing.
 - Fourteen direct exercise/routine/workout mutations and commands.
-- Sync push (all seventeen mutation kinds), incremental pull and frozen snapshots.
+- Sync push (all eighteen mutation kinds), incremental pull and frozen snapshots.
 - Account export, deletion receipt replay and authenticated status; scheduled purge.
 
 Route coverage is not a claim that every failure, race or operating condition

@@ -1,6 +1,7 @@
 package com.dragosfotache.gtbackend.sync;
 
 import com.dragosfotache.gtbackend.auth.AuthCrypto;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,6 +28,7 @@ class RoutineUpsertHttpIntegrationTest {
     @Container
     static final PostgreSQLContainer<?> pg = new PostgreSQLContainer<>("postgres:16-alpine");
     static final String key = Base64.getEncoder().encodeToString(new byte[32]);
+    private static final String MACHINE_PEC_FLY = "4aba0e31-4c5b-45d3-b32b-1bc3480b06c7";
 
     @DynamicPropertySource
     static void props(DynamicPropertyRegistry r) {
@@ -1122,6 +1124,244 @@ class RoutineUpsertHttpIntegrationTest {
         assertTrue(send(a.token, envelope(accepted.replace(acceptedId, uid()))).body.contains("id_collision"));
         String childCollision = accepted.replace(acceptedId, uid()).replace(routine, uid());
         assertTrue(send(a.token, envelope(childCollision)).body.contains("id_collision"));
+    }
+
+    @Test
+    void snapshotStartUsesCapturedWorkoutAfterRoutineEditAndCanBeEditedAndFinished() throws Exception {
+        Client c = client();
+        String exercise = MACHINE_PEC_FLY;
+        String routineId = uid(), routineEntry = uid(), routineSet = uid(), emptyRoutineEntry = uid();
+        String routineInput = """
+                {"id":"%s","name":"Offline strength","isDraft":true,"exercises":[
+                  {"id":"%s","exerciseId":"%s","position":0,"restDurationSeconds":75,
+                   "sets":[{"id":"%s","position":0,"repetitions":null,"weightKg":0.0}]},
+                  {"id":"%s","exerciseId":"%s","position":1,"restDurationSeconds":0,"sets":[]}]}
+                """.formatted(routineId, routineEntry, exercise, routineSet, emptyRoutineEntry, exercise);
+        assertEquals("accepted", pushResult(c, mutation(uid(), routineId, routineInput)).path("status").asText());
+        String save = copyMutation(uid(), "routine.save", "routine", routineId, "{\"name\":\"Offline strength\"}");
+        assertEquals("accepted", pushResult(c, save).path("status").asText());
+        String prior = uid();
+        var priorRecord = pushResult(c, startMutation(uid(), prior, "Older client"));
+        assertEquals("accepted", priorRecord.path("status").asText());
+        assertTrue(priorRecord.path("batch").path("changes").get(0).path("record").path("exercises").isEmpty());
+        String baseline = priorRecord.path("batch").path("cursor").asText();
+
+        String target = uid(), entry = uid(), set = uid(), emptyEntry = uid();
+        String captured = """
+                {"id":"%s","name":"Offline strength","status":"active","startedAt":"2025-01-01T06:07:08.123Z",
+                 "exercises":[
+                   {"id":"%s","exerciseId":"%s","position":0,"notes":"Start note","restDurationSeconds":75,
+                    "sets":[{"id":"%s","position":0,"repetitions":null,"weightKg":0.0,"isCompleted":false}]},
+                   {"id":"%s","exerciseId":"%s","position":1,"notes":"","restDurationSeconds":0,"sets":[]}]}
+                """.formatted(target, entry, exercise, set, emptyEntry, exercise);
+        String legacyTarget = uid();
+        String legacy = copyMutation(uid(), "routine.startWorkout", "workout", legacyTarget, """
+                {"sourceRoutineId":"%s","id":"%s","startedAt":"2025-01-01T06:07:08.123Z","childIds":[
+                  %s,{"sourceExerciseId":"%s","id":"%s","sets":[]}]}
+                """.formatted(routineId, legacyTarget, cloneBinding(routineEntry, uid(), routineSet, uid()), emptyRoutineEntry, uid()));
+        String routineEdit = routineInput.replace("\"isDraft\":true", "\"isDraft\":false")
+                .replace("Offline strength", "Updated routine").replace(routineEntry, uid()).replace(routineSet, uid());
+        var routineUpdate = pushResult(c, mutation(uid(), routineId, routineEdit));
+        assertEquals("accepted", routineUpdate.path("status").asText(), routineUpdate.toString());
+        assertEquals("source_shape_changed", pushResult(c, legacy).path("errorCode").asText());
+        assertEquals(prior, activeWorkout(c));
+
+        var started = pushResult(c, copyMutation(uid(), "workout.startFromSnapshot", "workout", target, captured));
+        assertEquals("accepted", started.path("status").asText(), started.toString());
+        var batch = started.path("batch");
+        var changes = batch.path("changes");
+        assertEquals(2, changes.size());
+        assertEquals(prior, changes.get(0).path("aggregateId").asText());
+        assertEquals("delete", changes.get(0).path("operation").asText());
+        assertEquals(2, changes.get(0).path("revision").asInt());
+        assertEquals(target, changes.get(1).path("aggregateId").asText());
+        assertEquals("upsert", changes.get(1).path("operation").asText());
+        assertEquals(1, changes.get(1).path("revision").asInt());
+        var record = changes.get(1).path("record");
+        assertEquals(parse(captured.replace("\"status\":", "\"revision\":1,\"finishedAt\":null,\"status\":")
+                .replace("\"notes\":", "\"exerciseName\":\"Machine Pec Fly\",\"notes\":")
+                .replace("\"isCompleted\":false", "\"isCompleted\":false,\"restSeconds\":null")), record);
+        assertEquals(target, activeWorkout(c));
+
+        var pullRequest = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/v1/sync/pull?cursor=" + baseline))
+                .header("Authorization", "Bearer " + c.token).GET().build();
+        var pulled = HttpClient.newHttpClient().send(pullRequest, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, pulled.statusCode(), pulled.body());
+        var batches = parse(pulled.body()).path("batches");
+        assertEquals(2, batches.size());
+        assertEquals("Updated routine", batches.get(0).path("changes").get(0).path("record").path("name").asText());
+        assertEquals(batch, batches.get(1));
+
+        String edited = captured.replace("\"repetitions\":null", "\"repetitions\":8")
+                .replace("\"isCompleted\":false", "\"isCompleted\":true,\"restSeconds\":42");
+        var upsert = pushResult(c, workoutMutation(uid(), target, edited, 2));
+        assertEquals("accepted", upsert.path("status").asText(), upsert.toString());
+        var finished = pushResult(c, finishMutation(uid(), target));
+        assertEquals("accepted", finished.path("status").asText(), finished.toString());
+        var finishedRecord = finished.path("batch").path("changes").get(0).path("record");
+        assertEquals(target, finishedRecord.path("id").asText());
+        assertEquals("finished", finishedRecord.path("status").asText());
+        assertEquals("2025-01-02T00:00:00Z", finishedRecord.path("finishedAt").asText());
+        assertEquals(3, finishedRecord.path("revision").asInt());
+        assertEquals(1, finishedRecord.path("exercises").size());
+        assertEquals(entry, finishedRecord.path("exercises").get(0).path("id").asText());
+        var finishedSet = finishedRecord.path("exercises").get(0).path("sets").get(0);
+        assertEquals(set, finishedSet.path("id").asText());
+        assertEquals(8, finishedSet.path("repetitions").asInt());
+        assertEquals(42, finishedSet.path("restSeconds").asInt());
+        assertNull(activeWorkout(c));
+    }
+
+    @Test
+    void snapshotStartPreflightRejectsWholePushBeforeEarlierValidMutation() {
+        Client c = client();
+        String root = uid();
+        String prior = startMutation(uid(), root, "Valid preceding mutation");
+        String invalid = snapshotStart(uid(), uid(), uid(), uid(), uid()).replace("\"isCompleted\":false", "\"isCompleted\":true");
+        Response response = send(c.token, envelope(prior, invalid));
+        assertEquals(422, response.status, response.body);
+        assertEquals("validation_error", parse(response.body).path("errorCode").asText());
+        assertNull(activeWorkout(c));
+        assertEquals(0, jdbc.queryForObject("select count(*) from processed_mutations where owner_id=?", Integer.class, c.account));
+        assertEquals(0, jdbc.queryForObject("select count(*) from sync_change_batches where account_id=?", Integer.class, c.account));
+    }
+
+    @Test
+    void snapshotStartRejectionsPreservePriorActiveCursorAndReservations() {
+        Client c = client(), foreign = client();
+        String exercise = MACHINE_PEC_FLY;
+        String prior = uid(), priorEntry = uid(), priorSet = uid(), foreignExercise = uid(), missingExercise = uid();
+        assertEquals("accepted", pushResult(c, snapshotStart(uid(), prior, priorEntry, exercise, priorSet)).path("status").asText());
+        assertEquals("accepted", pushResult(foreign, importMutation(uid(), "customExercise", foreignExercise,
+                "{\"id\":\"" + foreignExercise + "\",\"name\":\"Foreign\"}")).path("status").asText());
+        String rejectedTarget = uid(), rejectedEntry = uid(), rejectedSet = uid();
+        String missing = snapshotStart(uid(), rejectedTarget, rejectedEntry, missingExercise, rejectedSet);
+        assertSnapshotRejection(c, missing, "invalid_reference");
+        assertSnapshotRejection(c, snapshotStart(uid(), uid(), uid(), foreignExercise, uid()), "invalid_reference");
+        assertSnapshotRejection(c, snapshotStart(uid(), prior, uid(), exercise, uid()), "id_collision");
+        assertSnapshotRejection(c, snapshotStart(uid(), priorEntry, uid(), exercise, uid()), "id_collision");
+        assertSnapshotRejection(c, snapshotStart(uid(), uid(), priorEntry, exercise, uid()), "id_collision");
+        assertSnapshotRejection(c, snapshotStart(uid(), uid(), uid(), exercise, priorSet), "id_collision");
+        assertEquals(prior, activeWorkout(c));
+        assertEquals(1L, jdbc.queryForObject("select revision from workouts where id=?", Long.class, UUID.fromString(prior)));
+        assertEquals(1L, snapshotCursor(c));
+        assertEquals(1, jdbc.queryForObject("select count(*) from workouts where owner_id=?", Integer.class, c.account));
+        assertEquals(1, jdbc.queryForObject("select count(*) from sync_change_batches where account_id=?", Integer.class, c.account));
+        assertEquals(3, jdbc.queryForObject("select count(*) from child_id_reservations where owner_id=? and family='workout'", Integer.class, c.account));
+
+        assertEquals("accepted", pushResult(c, importMutation(uid(), "customExercise", missingExercise,
+                "{\"id\":\"" + missingExercise + "\",\"name\":\"Now visible\"}")).path("status").asText());
+        var duplicate = pushResult(c, missing);
+        assertEquals("duplicate", duplicate.path("status").asText());
+        assertEquals("invalid_reference", duplicate.path("errorCode").asText());
+        assertEquals(prior, activeWorkout(c));
+        assertEquals(2L, snapshotCursor(c));
+        assertEquals("accepted", pushResult(c, snapshotStart(uid(), rejectedTarget, rejectedEntry, missingExercise, rejectedSet)).path("status").asText());
+        assertEquals(rejectedTarget, activeWorkout(c));
+    }
+
+    @Test
+    void snapshotStartExactReplayAcrossHttpProcessRestartKeepsOriginalBatch() throws Exception {
+        Client c = client();
+        String prior = uid(), target = uid(), later = uid();
+        assertEquals("accepted", pushResult(c, startMutation(uid(), prior, "Prior")).path("status").asText());
+        String mutation = snapshotStart(uid(), target, uid(), MACHINE_PEC_FLY, uid());
+        int processPort = freePort();
+        Process first = startServer(processPort);
+        JsonNode original;
+        try {
+            awaitServer(processPort);
+            original = parse(sendAt(processPort, c.token, envelope(mutation))).path("results").get(0);
+            assertEquals("accepted", original.path("status").asText(), original.toString());
+            assertEquals(2, original.path("batch").path("changes").size());
+        } finally {
+            stopServer(first);
+        }
+        assertEquals("accepted", pushResult(c, startMutation(uid(), later, "Later")).path("status").asText());
+        Process second = startServer(processPort);
+        try {
+            awaitServer(processPort);
+            var duplicate = parse(sendAt(processPort, c.token, "{\"mutations\":[ \n" + mutation + " \n]}")).path("results").get(0);
+            assertEquals("duplicate", duplicate.path("status").asText());
+            assertEquals(original.path("batch"), duplicate.path("batch"));
+            var changed = parse(sendAt(processPort, c.token, envelope(mutation.replace("\"name\":", "\"name\" :")))).path("results").get(0);
+            assertEquals("rejected", changed.path("status").asText());
+            assertEquals("mutation_id_reused", changed.path("errorCode").asText());
+            assertTrue(changed.path("batch").isNull());
+            assertEquals(later, activeWorkout(c));
+            assertEquals(3L, snapshotCursor(c));
+            assertEquals(3, jdbc.queryForObject("select count(*) from workouts where owner_id=?", Integer.class, c.account));
+            assertEquals(2L, jdbc.queryForObject("select revision from workouts where id=?", Long.class, UUID.fromString(target)));
+            assertEquals(3, jdbc.queryForObject("select count(*) from processed_mutations where owner_id=?", Integer.class, c.account));
+        } finally {
+            stopServer(second);
+        }
+    }
+
+    @Test
+    void snapshotStartConcurrentRequestsLeaveLastCommittedWorkoutActive() throws Exception {
+        Client c = client();
+        String exercise = MACHINE_PEC_FLY;
+        String firstTarget = uid(), secondTarget = uid();
+        String firstRequest = snapshotStart(uid(), firstTarget, uid(), exercise, uid());
+        String secondRequest = snapshotStart(uid(), secondTarget, uid(), exercise, uid());
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch gate = new CountDownLatch(1);
+        try {
+            Future<JsonNode> first = pool.submit(() -> {
+                gate.await();
+                return pushResult(c, firstRequest);
+            });
+            Future<JsonNode> second = pool.submit(() -> {
+                gate.await();
+                return pushResult(c, secondRequest);
+            });
+            gate.countDown();
+            var a = first.get(30, TimeUnit.SECONDS);
+            var b = second.get(30, TimeUnit.SECONDS);
+            assertEquals("accepted", a.path("status").asText(), a.toString());
+            assertEquals("accepted", b.path("status").asText(), b.toString());
+            var aChanges = a.path("batch").path("changes");
+            var bChanges = b.path("batch").path("changes");
+            var initial = aChanges.size() == 1 ? aChanges : bChanges;
+            var replacement = aChanges.size() == 1 ? bChanges : aChanges;
+            assertEquals(1, initial.size());
+            assertEquals("upsert", initial.get(0).path("operation").asText());
+            assertEquals(2, replacement.size());
+            assertEquals("delete", replacement.get(0).path("operation").asText());
+            assertEquals(initial.get(0).path("aggregateId").asText(), replacement.get(0).path("aggregateId").asText());
+            assertEquals("upsert", replacement.get(1).path("operation").asText());
+            assertEquals(activeWorkout(c), replacement.get(1).path("aggregateId").asText());
+            assertEquals(2L, snapshotCursor(c));
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private JsonNode pushResult(Client client, String rawMutation) {
+        Response response = send(client.token, envelope(rawMutation));
+        assertEquals(200, response.status, response.body);
+        return parse(response.body).path("results").get(0);
+    }
+
+    private void assertSnapshotRejection(Client client, String mutation, String code) {
+        var result = pushResult(client, mutation);
+        assertEquals("rejected", result.path("status").asText(), result.toString());
+        assertEquals(code, result.path("errorCode").asText());
+        assertTrue(result.path("batch").isNull());
+    }
+
+    private long snapshotCursor(Client client) {
+        return jdbc.queryForObject("select committed_cursor from account_sync_state where account_id=?", Long.class, client.account);
+    }
+
+    private String snapshotStart(String mutationId, String root, String entry, String exercise, String set) {
+        String payload = """
+                {"id":"%s","name":"Snapshot","status":"active","startedAt":"2025-01-01T06:07:08.123Z",
+                 "exercises":[{"id":"%s","exerciseId":"%s","position":0,"notes":"","restDurationSeconds":30,
+                 "sets":[{"id":"%s","position":0,"isCompleted":false}]}]}
+                """.formatted(root, entry, exercise, set);
+        return copyMutation(mutationId, "workout.startFromSnapshot", "workout", root, payload);
     }
 
     @Test

@@ -18,7 +18,7 @@ import java.sql.Savepoint;
 import java.util.*;
 
 /**
- * Ordered, transaction-fenced sync execution for the approved routine.upsert slice only.
+ * Ordered, transaction-fenced sync execution with durable mutation replay.
  */
 @Service
 public class RoutineUpsertExecutor {
@@ -52,7 +52,7 @@ public class RoutineUpsertExecutor {
     public List<Map<String, Object>> push(String token, List<PushPreflight.Mutation> mutations) {
 
         // Unsupported, structurally valid work is never claimed or partially preceded by writes.
-        if (mutations.stream().anyMatch(m -> !Set.of("routine.upsert", "routine.save", "routine.deleteExercise", "routine.deleteSet", "customExercise.upsert", "workout.start", "workout.upsert", "workout.finish", "workout.performAgain", "routine.startWorkout", "workout.saveAsRoutine", "workout.addExercises", "workout.replaceExercise", "workout.deleteExercise", "workout.deleteSet", "aggregate.delete", "aggregate.import").contains(type(m))))
+        if (mutations.stream().anyMatch(m -> !Set.of("routine.upsert", "routine.save", "routine.deleteExercise", "routine.deleteSet", "customExercise.upsert", "workout.start", "workout.startFromSnapshot", "workout.upsert", "workout.finish", "workout.performAgain", "routine.startWorkout", "workout.saveAsRoutine", "workout.addExercises", "workout.replaceExercise", "workout.deleteExercise", "workout.deleteSet", "aggregate.delete", "aggregate.import").contains(type(m))))
             throw new TemporarilyUnavailable();
         List<Map<String, Object>> result = new ArrayList<>();
         for (var m : mutations)
@@ -140,6 +140,8 @@ public class RoutineUpsertExecutor {
         if (kind.equals("workout.start")) {
             JsonNode p = n.path("payload");
             start = new Workout(target, p.path("name").asText(), WorkoutStatus.ACTIVE, java.time.OffsetDateTime.parse(p.path("startedAt").asText()).toInstant(), null, 0, List.of());
+        } else if (kind.equals("workout.startFromSnapshot")) {
+            start = decodeWorkout(n.path("payload"));
         }
         if (saveAsRoutine) {
             JsonNode p = n.path("payload");
@@ -374,9 +376,9 @@ public class RoutineUpsertExecutor {
                         else aggregates.importWorkoutRowsInLockedAccount(owner, workoutReplacement);
                     } else if (importType.equals("routine")) aggregates.importRoutineRowsInLockedAccount(owner, r);
                     else aggregates.importCustomExerciseRowsInLockedAccount(owner, importedCustom);
-                } else if (start != null) startResult = (performAgain || startFromRoutine)
-                        ? aggregates.startWorkoutCloneRowsInLockedAccount(owner, start)
-                        : aggregates.startWorkoutRowsInLockedAccount(owner, start);
+                } else if (start != null) startResult = kind.equals("workout.start")
+                        ? aggregates.startWorkoutRowsInLockedAccount(owner, start)
+                        : aggregates.startPopulatedWorkoutRowsInLockedAccount(owner, start);
                 else if (workoutReplacement != null)
                     aggregates.replaceActiveWorkoutRowsInLockedAccount(owner, workoutReplacement);
                 else if (finishing) aggregates.finishWorkoutInLockedAccount(owner, target, finishedAt);
@@ -412,7 +414,7 @@ public class RoutineUpsertExecutor {
         List<Map<String, Object>> changes = new ArrayList<>();
         if (deleting) {
             changes.add(Map.of("aggregateType", importType, "aggregateId", target.toString(), "operation", "delete", "revision", deletedRevision));
-        } else if (importing && importType.equals("workout") && workoutReplacement.status() == WorkoutStatus.ACTIVE) {
+        } else if (startResult != null) {
             if (startResult.replacedId() != null)
                 changes.add(Map.of("aggregateType", "workout", "aggregateId", startResult.replacedId().toString(), "operation", "delete", "revision", startResult.replacedRevision()));
             var read = aggregates.readWorkout(owner, target);
@@ -426,11 +428,6 @@ public class RoutineUpsertExecutor {
         } else if (importing) {
             ExerciseValue read = aggregates.readVisibleExercise(owner, target);
             changes.add(Map.of("aggregateType", "customExercise", "aggregateId", target.toString(), "operation", "upsert", "revision", read.revision(), "record", resourceMapper.exercise(read)));
-        } else if (start != null) {
-            if (startResult.replacedId() != null)
-                changes.add(Map.of("aggregateType", "workout", "aggregateId", startResult.replacedId().toString(), "operation", "delete", "revision", startResult.replacedRevision()));
-            var read = aggregates.readWorkout(owner, target);
-            changes.add(Map.of("aggregateType", "workout", "aggregateId", target.toString(), "operation", "upsert", "revision", read.root().revision(), "record", wireWorkout(read)));
         } else if (workoutReplacement != null || finishing || (kind.startsWith("workout.") && !saveAsRoutine)) {
             var read = aggregates.readWorkout(owner, target);
             changes.add(Map.of("aggregateType", "workout", "aggregateId", target.toString(), "operation", "upsert", "revision", read.root().revision(), "record", wireWorkout(read)));
