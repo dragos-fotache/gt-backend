@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "mcpls": {
+      "url": "http://127.0.0.1:39003/mcp",
+      "lifecycle": "lazy-keep-alive",
+      "requestTimeoutMs": 120000,
+      "description": "Shared persistent java language server for gt-backend"
+    }
+  }
+}

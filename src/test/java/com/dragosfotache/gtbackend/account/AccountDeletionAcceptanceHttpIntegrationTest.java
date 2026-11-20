@@ -191,6 +191,65 @@ class AccountDeletionAcceptanceHttpIntegrationTest {
     }
 
     @Test
+    void fractionalAcceptanceRetainsMillisecondReceiptAcrossStatusAndExpiredProofReplay() {
+        Instant previous = acceptanceClock.instant();
+        Instant raw = Instant.parse("2026-09-27T12:00:00.123456789Z");
+        Instant expectedAt = Instant.parse("2026-09-27T12:00:00.123Z");
+        Instant expectedBy = Instant.parse("2026-09-28T12:00:00.123Z");
+        try {
+            acceptanceClock.set(raw);
+            BoundAccount account = provision("precision-subject", "precision-signup");
+            ProofChallenge proof = challenge("{\"purpose\":\"deleteAccount\"}");
+            lenient().when(verifier.verify("precision-delete", proof.nonce))
+                    .thenReturn(new Verified("precision-subject", null));
+            String key = UUID.randomUUID().toString();
+            Reply accepted = deleteCall(account.accountId.toString(), proof.id, "precision-delete", key);
+            assertEquals(202, accepted.status, "Fractional-clock deletion must be accepted");
+            assertEquals(expectedAt.toString(), accepted.node().path("deletedAt").asText(),
+                    "Wire deletion time must preserve exact milliseconds only");
+            assertEquals(expectedBy.toString(), accepted.node().path("purgeBy").asText(),
+                    "Wire purge deadline must be exactly24hours after persisted acceptance");
+            assertEquals(expectedAt, jdbc.queryForObject(
+                    "SELECT deleted_at FROM account_deletion_ledger WHERE old_account_id=?",
+                    java.sql.Timestamp.class, account.accountId).toInstant());
+            assertEquals(expectedBy, jdbc.queryForObject(
+                    "SELECT purge_by FROM account_deletion_ledger WHERE old_account_id=?",
+                    java.sql.Timestamp.class, account.accountId).toInstant());
+            assertEquals(expectedBy, jdbc.queryForObject(
+                    "SELECT purge_by FROM account_purge_intents WHERE old_account_id=?",
+                    java.sql.Timestamp.class, account.accountId).toInstant());
+
+            assertEquals(expectedAt, jdbc.queryForObject(
+                    "SELECT created_at FROM account_purge_intents WHERE old_account_id=?",
+                    java.sql.Timestamp.class, account.accountId).toInstant());
+            assertEquals(expectedAt, jdbc.queryForObject(
+                    "SELECT deleted_at FROM accounts WHERE id=?",
+                    java.sql.Timestamp.class, account.accountId).toInstant());
+            assertEquals(expectedAt, jdbc.queryForObject(
+                    "SELECT consumed_at FROM auth_challenges WHERE id=?",
+                    java.sql.Timestamp.class, UUID.fromString(proof.id)).toInstant());
+
+            acceptanceClock.set(raw.plusSeconds(301));
+            Reply replay = deleteCall(account.accountId.toString(), proof.id, "precision-delete", key);
+            assertEquals(202, replay.status, "Expired original proof must not invalidate exact replay");
+            assertEquals(accepted.body, replay.body, "Exact replay must retain the original receipt bytes");
+            ProofChallenge statusProof = challenge("{\"purpose\":\"accountStatus\"}");
+            lenient().when(verifier.verify("precision-status", statusProof.nonce))
+                    .thenReturn(new Verified("precision-subject", null));
+            Reply status = post("/v1/account/status",
+                    "{\"accountId\":\"" + account.accountId + "\",\"challengeId\":\"" + statusProof.id
+                            + "\",\"idToken\":\"precision-status\"}", null);
+            assertEquals(200, status.status, "Fresh status proof must recover accepted deletion");
+            assertEquals(accepted.body, status.body, "Status must retain persisted deletion/deadline bytes");
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT count(*) FROM account_deletion_ledger WHERE old_account_id=?",
+                    Integer.class, account.accountId));
+        } finally {
+            acceptanceClock.set(previous);
+        }
+    }
+
+    @Test
     void acceptedDeletionDisablesAccountSessionsBindingAndRecordsMinimalEvidence() {
         BoundAccount account = provision("accept-subject", "accept-signup");
         BoundAccount secondGrant = provisionAgain("accept-subject", "accept-second-signup");
@@ -307,10 +366,11 @@ class AccountDeletionAcceptanceHttpIntegrationTest {
                 Integer.class, account.accountId));
         // Expire test-owned credentials and replay so bounded production cleanup can
         // reclaim rows while preserving the account and its identity binding.
-        jdbc.update("UPDATE auth_credentials SET expires_at=clock_timestamp() - interval '1 second' "
-                + "WHERE session_id IN (SELECT id FROM auth_sessions WHERE account_id=?)", account.accountId);
-        jdbc.update("UPDATE auth_idempotency SET expires_at=clock_timestamp() - interval '1 second' "
-                + "WHERE session_id IN (SELECT id FROM auth_sessions WHERE account_id=?)", account.accountId);
+        java.sql.Timestamp expired = java.sql.Timestamp.from(acceptanceClock.instant().minusSeconds(1));
+        jdbc.update("UPDATE auth_credentials SET expires_at=? "
+                + "WHERE session_id IN (SELECT id FROM auth_sessions WHERE account_id=?)", expired, account.accountId);
+        jdbc.update("UPDATE auth_idempotency SET expires_at=? "
+                + "WHERE session_id IN (SELECT id FROM auth_sessions WHERE account_id=?)", expired, account.accountId);
         authService.cleanupExpired();
         authService.cleanupExpired();
         assertEquals(0, jdbc.queryForObject(
